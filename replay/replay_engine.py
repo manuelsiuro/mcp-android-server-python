@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 import time
 import json
 from pathlib import Path
+import server
 
 from .action_dispatcher import ActionDispatcher
 from .execution_context import ExecutionContext, ReplayConfig
@@ -157,7 +158,6 @@ class ReplayEngine:
         Calls wait_for_screen_on if device_id is available.
         """
         try:
-            import server
             if self.device_id:
                 server.screen_on(self.device_id)
                 # Wait a bit for screen to stabilize

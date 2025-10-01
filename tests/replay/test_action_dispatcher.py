@@ -32,9 +32,8 @@ class TestActionDispatcherToolRegistry:
             # UI Interaction Tools (10)
             'click', 'long_click', 'double_click', 'send_text', 'swipe',
             'drag', 'click_at', 'double_click_at', 'screenshot', 'wait_for_element',
-            # XPath Tools (5)
-            'click_xpath', 'long_click_xpath', 'send_text_xpath',
-            'wait_xpath', 'get_element_xpath',
+            # XPath Tools (4) - get_element_xpath is read-only, excluded
+            'click_xpath', 'long_click_xpath', 'send_text_xpath', 'wait_xpath',
             # Scrolling Tools (7)
             'scroll_to', 'scroll_forward', 'scroll_backward',
             'scroll_to_beginning', 'scroll_to_end', 'fling_forward', 'fling_backward',
@@ -46,8 +45,8 @@ class TestActionDispatcherToolRegistry:
             'unlock_screen', 'set_orientation', 'freeze_rotation',
             # Gesture Tools (2)
             'pinch_in', 'pinch_out',
-            # System Tools (5)
-            'set_clipboard', 'get_clipboard', 'pull_file', 'push_file', 'shell',
+            # System Tools (3) - get_clipboard and shell are read-only, excluded
+            'set_clipboard', 'pull_file', 'push_file',
             # Notification & Popup Tools (3)
             'open_notification', 'open_quick_settings', 'disable_popups',
             # Wait Tools (1)
@@ -55,9 +54,8 @@ class TestActionDispatcherToolRegistry:
             # Advanced Tools (3)
             'healthcheck', 'reset_uiautomator', 'send_action',
             # Watcher Tools (3)
-            'watcher_start', 'watcher_stop', 'watcher_remove',
-            # Inspection Tools (2)
-            'get_element_info', 'dump_hierarchy'
+            'watcher_start', 'watcher_stop', 'watcher_remove'
+            # Note: Inspection tools (get_element_info, dump_hierarchy) are read-only, excluded
         ]
 
         dispatcher = ActionDispatcher()

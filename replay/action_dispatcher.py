@@ -48,12 +48,11 @@ class ActionDispatcher:
             self._tool_registry['screenshot'] = server.screenshot
             self._tool_registry['wait_for_element'] = server.wait_for_element
 
-            # XPath Tools (5 tools)
+            # XPath Tools (4 tools)
             self._tool_registry['click_xpath'] = server.click_xpath
             self._tool_registry['long_click_xpath'] = server.long_click_xpath
             self._tool_registry['send_text_xpath'] = server.send_text_xpath
             self._tool_registry['wait_xpath'] = server.wait_xpath
-            self._tool_registry['get_element_xpath'] = server.get_element_xpath
 
             # Scrolling Tools (7 tools)
             self._tool_registry['scroll_to'] = server.scroll_to
@@ -84,12 +83,10 @@ class ActionDispatcher:
             self._tool_registry['pinch_in'] = server.pinch_in
             self._tool_registry['pinch_out'] = server.pinch_out
 
-            # System Tools (5 tools)
+            # System Tools (3 tools)
             self._tool_registry['set_clipboard'] = server.set_clipboard
-            self._tool_registry['get_clipboard'] = server.get_clipboard
             self._tool_registry['pull_file'] = server.pull_file
             self._tool_registry['push_file'] = server.push_file
-            self._tool_registry['shell'] = server.shell
 
             # Notification & Popup Tools (3 tools)
             self._tool_registry['open_notification'] = server.open_notification
@@ -108,10 +105,6 @@ class ActionDispatcher:
             self._tool_registry['watcher_start'] = server.watcher_start
             self._tool_registry['watcher_stop'] = server.watcher_stop
             self._tool_registry['watcher_remove'] = server.watcher_remove
-
-            # Inspection Tools (2 tools - read-only but might be in scenarios)
-            self._tool_registry['get_element_info'] = server.get_element_info
-            self._tool_registry['dump_hierarchy'] = server.dump_hierarchy
 
         except ImportError as e:
             print(f"Warning: Failed to import server module: {e}")

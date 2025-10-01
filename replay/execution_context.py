@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Optional, Dict
 import time
 from pathlib import Path
+import server
 
 from .replay_report import ActionResult, ActionStatus, ExecutionMetrics
 
@@ -173,8 +174,6 @@ class ExecutionContext:
             Screenshot file path or None if capture failed
         """
         try:
-            import server
-
             filename = str(self.screenshot_dir / f"action_{action_index:03d}_{stage}.png")
             success = server.screenshot(filename, self.device_id)
 
