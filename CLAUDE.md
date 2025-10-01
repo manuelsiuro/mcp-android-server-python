@@ -1112,6 +1112,116 @@ Create `.vscode/mcp.json` in your project:
 }
 ```
 
+## Git Workflow & Branch Strategy
+
+### Branch Management Rules
+
+**IMPORTANT:** All feature development must follow this workflow:
+
+1. **Feature Branch Required**: Create a new branch for each feature, bugfix, or enhancement
+2. **User Confirmation Required**: Before merging to `main`, you MUST ask for user confirmation
+3. **No Direct Main Commits**: Never commit directly to `main` branch (except initial setup)
+
+### Workflow Steps
+
+**For every new feature/change:**
+
+```bash
+# 1. Create feature branch from main
+git checkout main
+git pull origin main
+git checkout -b feature/descriptive-name
+
+# Examples:
+# git checkout -b feature/recording-engine
+# git checkout -b feature/espresso-generator
+# git checkout -b bugfix/screenshot-timeout
+# git checkout -b docs/update-readme
+
+# 2. Work on your feature
+# Make changes, test, commit as needed
+git add .
+git commit -m "Descriptive commit message"
+
+# 3. Push feature branch to GitHub
+git push -u origin feature/descriptive-name
+
+# 4. Request user confirmation before merge
+# ASK USER: "Feature X is complete. Should I merge to main?"
+
+# 5. After user approval, merge to main
+git checkout main
+git merge feature/descriptive-name
+git push origin main
+
+# 6. Delete feature branch (optional, after successful merge)
+git branch -d feature/descriptive-name
+git push origin --delete feature/descriptive-name
+```
+
+### Branch Naming Conventions
+
+- `feature/` - New features (e.g., `feature/recording-engine`)
+- `bugfix/` - Bug fixes (e.g., `bugfix/screenshot-crash`)
+- `hotfix/` - Urgent production fixes (e.g., `hotfix/security-patch`)
+- `docs/` - Documentation updates (e.g., `docs/api-reference`)
+- `refactor/` - Code refactoring (e.g., `refactor/cleanup-imports`)
+- `test/` - Test additions/improvements (e.g., `test/add-unit-tests`)
+
+### Commit Message Format
+
+Follow conventional commits:
+
+```
+<type>: <short description>
+
+<optional detailed description>
+
+<optional footer>
+```
+
+**Types:**
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation only
+- `style:` - Code style changes (formatting, etc.)
+- `refactor:` - Code refactoring
+- `test:` - Adding or updating tests
+- `chore:` - Maintenance tasks
+
+**Examples:**
+```bash
+git commit -m "feat: add recording engine with action interception"
+git commit -m "fix: resolve screenshot timeout on slow devices"
+git commit -m "docs: update installation instructions"
+git commit -m "refactor: simplify selector mapping logic"
+```
+
+### Before Merging to Main - Checklist
+
+Before requesting merge approval, ensure:
+
+- ✅ All tests pass (`pytest`)
+- ✅ Code is linted and formatted (`ruff check . && ruff format .`)
+- ✅ Documentation is updated (if needed)
+- ✅ No sensitive data committed (API keys, passwords, etc.)
+- ✅ Changes are committed with clear messages
+- ✅ Feature branch is pushed to GitHub
+
+### Example Workflow Conversation
+
+```
+Claude: "I've completed the recording engine feature on branch
+feature/recording-engine. All tests pass and code is formatted.
+Should I merge this to main?"
+
+User: "Yes, merge it"
+
+Claude: [Merges to main and pushes]
+```
+
+---
+
 ## Important Notes
 
 - All tools return typed results using TypedDict definitions
