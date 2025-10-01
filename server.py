@@ -9,6 +9,9 @@ import os
 from pathlib import Path
 from typing import TypedDict
 from dotenv import load_dotenv
+from datetime import datetime
+import json
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,7 +19,66 @@ load_dotenv()
 # Create an MCP server
 mcp = FastMCP("MCP Server Android")
 
+# ============================================================================
+# RECORDING MECHANISM - POC
+# ============================================================================
 
+# Global recording state
+_recording_state = {
+    "active": False,
+    "session_name": None,
+    "actions": [],
+    "screenshots_dir": None,
+    "start_time": None,
+    "action_counter": 0,
+    "device_id": None,
+    "last_action_time": None
+}
+
+def _record_action(tool_name: str, params: dict, result: Any) -> None:
+    """Log an action if recording is active."""
+    global _recording_state
+
+    if not _recording_state["active"]:
+        return
+
+    _recording_state["action_counter"] += 1
+    action_id = _recording_state["action_counter"]
+
+    current_time = datetime.now()
+    timestamp = current_time.isoformat()
+
+    # Calculate delays
+    delay_before_ms = 0
+    if _recording_state["last_action_time"]:
+        delay_before_ms = int((current_time - _recording_state["last_action_time"]).total_seconds() * 1000)
+
+    action_data = {
+        "id": action_id,
+        "timestamp": timestamp,
+        "tool": tool_name,
+        "params": params,
+        "result": result,
+        "delay_before_ms": delay_before_ms,
+        "delay_after_ms": 1000  # Default, can be adjusted
+    }
+
+    # Capture screenshot if enabled
+    if _recording_state["screenshots_dir"]:
+        screenshot_file = f"{_recording_state['screenshots_dir']}/{action_id:03d}_{tool_name}.png"
+        try:
+            # Use the screenshot function
+            d = u2.connect(_recording_state["device_id"])
+            d.screenshot(screenshot_file)
+            action_data["screenshot"] = screenshot_file
+        except Exception as e:
+            print(f"Screenshot failed for action {action_id}: {e}")
+            action_data["screenshot"] = None
+
+    _recording_state["actions"].append(action_data)
+    _recording_state["last_action_time"] = current_time
+
+# ============================================================================
 # Type definitions for better type hints
 class DeviceInfo(TypedDict):
     manufacturer: str
@@ -52,6 +114,262 @@ class ElementInfo(TypedDict):
 def mcp_health() -> str:
     return "Hello, world!"
 
+
+# ============================================================================
+# RECORDING TOOLS - POC
+# ============================================================================
+
+@mcp.tool(
+    name="start_recording",
+    description="Start recording Android UI interactions as a test scenario"
+)
+def start_recording(
+    session_name: str,
+    description: Optional[str] = None,
+    capture_screenshots: bool = True,
+    device_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Start recording mode for capturing UI interactions.
+
+    Args:
+        session_name: Name for this test scenario
+        description: Optional description of what this scenario tests
+        capture_screenshots: Whether to capture screenshots at each step
+        device_id: Optional specific device to record from
+
+    Returns:
+        recording_id: Unique ID for this recording session
+        start_time: Timestamp when recording started
+        status: Recording status
+    """
+    global _recording_state
+
+    if _recording_state["active"]:
+        return {
+            "error": "Recording already in progress",
+            "current_session": _recording_state["session_name"]
+        }
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_id = f"{session_name}_{timestamp}"
+
+    # Create directories
+    scenarios_dir = Path("scenarios") / session_id
+    scenarios_dir.mkdir(parents=True, exist_ok=True)
+
+    screenshots_dir = None
+    if capture_screenshots:
+        screenshots_dir = scenarios_dir / "screenshots"
+        screenshots_dir.mkdir(exist_ok=True)
+        screenshots_dir = str(screenshots_dir)
+
+    _recording_state = {
+        "active": True,
+        "session_name": session_id,
+        "description": description,
+        "actions": [],
+        "screenshots_dir": screenshots_dir,
+        "start_time": datetime.now(),
+        "action_counter": 0,
+        "device_id": device_id,
+        "last_action_time": None
+    }
+
+    return {
+        "recording_id": session_id,
+        "status": "active",
+        "start_time": _recording_state["start_time"].isoformat(),
+        "capture_screenshots": capture_screenshots
+    }
+
+
+@mcp.tool(
+    name="stop_recording",
+    description="Stop recording and save the scenario"
+)
+def stop_recording() -> Dict[str, Any]:
+    """Stop recording and save the scenario to JSON file.
+
+    Returns:
+        scenario_file: Path to saved scenario JSON
+        screenshot_folder: Path to screenshots
+        action_count: Number of actions recorded
+        duration_ms: Total recording duration
+    """
+    global _recording_state
+
+    if not _recording_state["active"]:
+        return {
+            "error": "No active recording session"
+        }
+
+    # Calculate duration
+    duration_ms = int((datetime.now() - _recording_state["start_time"]).total_seconds() * 1000)
+
+    # Get device info
+    device_info = {}
+    try:
+        d = u2.connect(_recording_state["device_id"])
+        info = d.info
+        device_info = {
+            "manufacturer": info.get("manufacturer", ""),
+            "model": info.get("model", ""),
+            "android_version": info.get("version", {}).get("release", ""),
+            "sdk": info.get("version", {}).get("sdk", 0)
+        }
+    except Exception as e:
+        print(f"Failed to get device info: {e}")
+
+    # Build scenario JSON
+    scenario = {
+        "schema_version": "1.0",
+        "metadata": {
+            "name": _recording_state["session_name"],
+            "description": _recording_state.get("description", ""),
+            "created_at": _recording_state["start_time"].isoformat(),
+            "device": device_info,
+            "duration_ms": duration_ms
+        },
+        "actions": _recording_state["actions"]
+    }
+
+    # Save to file
+    scenario_file = Path("scenarios") / _recording_state["session_name"] / "scenario.json"
+    with open(scenario_file, 'w') as f:
+        json.dump(scenario, f, indent=2)
+
+    result = {
+        "scenario_file": str(scenario_file),
+        "screenshot_folder": _recording_state["screenshots_dir"],
+        "action_count": len(_recording_state["actions"]),
+        "duration_ms": duration_ms,
+        "status": "saved"
+    }
+
+    # Reset recording state
+    _recording_state["active"] = False
+
+    return result
+
+
+@mcp.tool(
+    name="get_recording_status",
+    description="Get current recording status"
+)
+def get_recording_status() -> Dict[str, Any]:
+    """Get the current recording status and statistics.
+
+    Returns:
+        Status information about current recording session
+    """
+    global _recording_state
+
+    if not _recording_state["active"]:
+        return {
+            "active": False,
+            "message": "No recording in progress"
+        }
+
+    duration_ms = int((datetime.now() - _recording_state["start_time"]).total_seconds() * 1000)
+
+    return {
+        "active": True,
+        "session_name": _recording_state["session_name"],
+        "action_count": len(_recording_state["actions"]),
+        "duration_ms": duration_ms,
+        "capture_screenshots": _recording_state["screenshots_dir"] is not None
+    }
+
+
+@mcp.tool(
+    name="replay_scenario",
+    description="Replay a recorded scenario from JSON file"
+)
+def replay_scenario(
+    scenario_file: str,
+    device_id: Optional[str] = None,
+    speed_multiplier: float = 1.0
+) -> Dict[str, Any]:
+    """Replay a previously recorded scenario.
+
+    Args:
+        scenario_file: Path to scenario JSON file
+        device_id: Optional specific device (default: any connected device)
+        speed_multiplier: Speed multiplier for delays (1.0 = normal speed)
+
+    Returns:
+        status: "PASSED" or "FAILED"
+        duration_ms: Replay execution time
+        actions_executed: Number of actions executed
+        actions_passed: Number of successful actions
+        actions_failed: Number of failed actions
+    """
+    try:
+        # Load scenario
+        with open(scenario_file) as f:
+            scenario = json.load(f)
+
+        actions = scenario.get("actions", [])
+        passed = 0
+        failed = 0
+        start_time = datetime.now()
+
+        for action in actions:
+            tool_name = action["tool"]
+            params = action["params"]
+
+            # Apply delay before action
+            delay_ms = action.get("delay_before_ms", 0)
+            if delay_ms > 0:
+                time.sleep((delay_ms / 1000) * speed_multiplier)
+
+            # Execute the tool
+            result = False
+            try:
+                if tool_name == "click":
+                    result = click(**params)
+                elif tool_name == "send_text":
+                    result = send_text(**params)
+                # Add more tools as needed
+                else:
+                    print(f"Unknown tool: {tool_name}")
+                    failed += 1
+                    continue
+
+                if result:
+                    passed += 1
+                else:
+                    failed += 1
+
+            except Exception as e:
+                print(f"Action {action['id']} failed: {e}")
+                failed += 1
+
+            # Apply delay after action
+            delay_after_ms = action.get("delay_after_ms", 0)
+            if delay_after_ms > 0:
+                time.sleep((delay_after_ms / 1000) * speed_multiplier)
+
+        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+        return {
+            "status": "PASSED" if failed == 0 else "FAILED",
+            "duration_ms": duration_ms,
+            "actions_executed": len(actions),
+            "actions_passed": passed,
+            "actions_failed": failed
+        }
+
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "error": str(e)
+        }
+
+
+# ============================================================================
+# END RECORDING TOOLS
+# ============================================================================
 
 @mcp.tool(
     name="connect_device",
@@ -410,6 +728,15 @@ def click(
                 center_x = (bounds.get("left", 0) + bounds.get("right", 0)) / 2
                 center_y = (bounds.get("top", 0) + bounds.get("bottom", 0)) / 2
                 d.click(center_x, center_y)
+
+                # RECORDING: Log this action if recording is active
+                _record_action("click", {
+                    "selector": selector,
+                    "selector_type": selector_type,
+                    "timeout": timeout,
+                    "device_id": device_id
+                }, True)
+
                 return True
         return False
     except Exception as e:
@@ -435,6 +762,14 @@ def send_text(text: str, clear: bool = True, device_id: Optional[str] = None) ->
     try:
         d = u2.connect(device_id)
         d.send_keys(text, clear=clear)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("send_text", {
+            "text": text,
+            "clear": clear,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to send text: {str(e)}")
