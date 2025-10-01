@@ -449,8 +449,18 @@ def start_app(
         d.app_start(package_name)
         if wait:
             pid = d.app_wait(package_name, front=True)
-            return pid is not None
-        return True
+            result = pid is not None
+        else:
+            result = True
+
+        # RECORDING: Log this action if recording is active
+        _record_action("start_app", {
+            "package_name": package_name,
+            "device_id": device_id,
+            "wait": wait
+        }, result)
+
+        return result
     except Exception as e:
         print(f"Failed to start app {package_name}: {str(e)}")
         return False
@@ -470,6 +480,13 @@ def stop_app(package_name: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.app_stop(package_name)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("stop_app", {
+            "package_name": package_name,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to stop app {package_name}: {str(e)}")
@@ -489,6 +506,12 @@ def stop_all_apps(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.app_stop_all()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("stop_all_apps", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to stop all apps: {str(e)}")
@@ -508,6 +531,12 @@ def screen_on(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.screen_on()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("screen_on", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to turn screen on: {str(e)}")
@@ -527,6 +556,12 @@ def screen_off(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.screen_off()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("screen_off", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to turn screen off: {str(e)}")
@@ -577,6 +612,13 @@ def press_key(key: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.press(key)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("press_key", {
+            "key": key,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to press key {key}: {str(e)}")
@@ -598,6 +640,12 @@ def unlock_screen(device_id: Optional[str] = None) -> bool:
         if not d.info["screenOn"]:
             d.screen_on()
         d.unlock()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("unlock_screen", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to unlock screen: {str(e)}")
@@ -852,6 +900,17 @@ def swipe(
     try:
         d = u2.connect(device_id)
         d.swipe(start_x, start_y, end_x, end_y, duration=duration)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("swipe", {
+            "start_x": start_x,
+            "start_y": start_y,
+            "end_x": end_x,
+            "end_y": end_y,
+            "duration": duration,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to perform swipe: {str(e)}")
@@ -880,15 +939,26 @@ def wait_for_element(
     """
     try:
         d = u2.connect(device_id)
+        result = False
         if selector_type == "text":
-            return d(text=selector).wait(timeout=timeout)
+            result = d(text=selector).wait(timeout=timeout)
         elif selector_type == "resourceId":
-            return d(resourceId=selector).wait(timeout=timeout)
+            result = d(resourceId=selector).wait(timeout=timeout)
         elif selector_type == "description":
             el = d(description=selector).wait(timeout=timeout)
-            return el is not None and el.exists
+            result = el is not None and el.exists
         else:
             raise ValueError(f"Invalid selector_type: {selector_type}")
+
+        # RECORDING: Log this action if recording is active
+        _record_action("wait_for_element", {
+            "selector": selector,
+            "selector_type": selector_type,
+            "timeout": timeout,
+            "device_id": device_id
+        }, result)
+
+        return result
     except Exception as e:
         print(f"Failed to wait for element {selector}: {str(e)}")
         return False
@@ -910,6 +980,13 @@ def screenshot(filename: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.screenshot(filename)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("screenshot", {
+            "filename": filename,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to take screenshot: {str(e)}")
@@ -956,6 +1033,15 @@ def long_click(
                 center_x = (bounds.get("left", 0) + bounds.get("right", 0)) / 2
                 center_y = (bounds.get("top", 0) + bounds.get("bottom", 0)) / 2
                 d.long_click(center_x, center_y, duration)
+
+                # RECORDING: Log this action if recording is active
+                _record_action("long_click", {
+                    "selector": selector,
+                    "selector_type": selector_type,
+                    "duration": duration,
+                    "device_id": device_id
+                }, True)
+
                 return True
         return False
     except Exception as e:
@@ -979,15 +1065,25 @@ def scroll_to(
     """
     try:
         d = u2.connect(device_id)
+        result = False
         if selector_type == "text":
-            return d(scrollable=True).scroll.to(text=selector)
+            result = d(scrollable=True).scroll.to(text=selector)
         elif selector_type == "resourceId":
-            return d(scrollable=True).scroll.to(resourceId=selector)
+            result = d(scrollable=True).scroll.to(resourceId=selector)
         elif selector_type == "description":
             el = d(scrollable=True).scroll.to(description=selector)
-            return el is not None and el.exists
+            result = el is not None and el.exists
         else:
             raise ValueError(f"Invalid selector_type: {selector_type}")
+
+        # RECORDING: Log this action if recording is active
+        _record_action("scroll_to", {
+            "selector": selector,
+            "selector_type": selector_type,
+            "device_id": device_id
+        }, result)
+
+        return result
     except Exception as e:
         print(f"Failed to scroll to element {selector}: {str(e)}")
         return False
@@ -1026,6 +1122,16 @@ def drag(
 
         if el and el.exists:
             el.drag_to(to_x, to_y)
+
+            # RECORDING: Log this action if recording is active
+            _record_action("drag", {
+                "selector": selector,
+                "selector_type": selector_type,
+                "to_x": to_x,
+                "to_y": to_y,
+                "device_id": device_id
+            }, True)
+
             return True
         return False
     except Exception as e:
@@ -1065,6 +1171,13 @@ def clear_app_data(package_name: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.app_clear(package_name)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("clear_app_data", {
+            "package_name": package_name,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to clear app data for {package_name}: {str(e)}")
@@ -1087,7 +1200,16 @@ def wait_activity(
     """
     try:
         d = u2.connect(device_id)
-        return d.wait_activity(activity, timeout=timeout)
+        result = d.wait_activity(activity, timeout=timeout)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("wait_activity", {
+            "activity": activity,
+            "timeout": timeout,
+            "device_id": device_id
+        }, result)
+
+        return result
     except Exception as e:
         print(f"Failed to wait for activity {activity}: {str(e)}")
         return False
@@ -1157,6 +1279,14 @@ def click_xpath(
                 center_x = (bounds.get("left", 0) + bounds.get("right", 0)) / 2
                 center_y = (bounds.get("top", 0) + bounds.get("bottom", 0)) / 2
                 d.click(center_x, center_y)
+
+                # RECORDING: Log this action if recording is active
+                _record_action("click_xpath", {
+                    "xpath": xpath,
+                    "timeout": timeout,
+                    "device_id": device_id
+                }, True)
+
                 return True
         return False
     except Exception as e:
@@ -1220,7 +1350,16 @@ def wait_xpath(
     try:
         d = u2.connect(device_id)
         el = d.xpath(xpath).wait(timeout=timeout)
-        return el is not None
+        result = el is not None
+
+        # RECORDING: Log this action if recording is active
+        _record_action("wait_xpath", {
+            "xpath": xpath,
+            "timeout": timeout,
+            "device_id": device_id
+        }, result)
+
+        return result
     except Exception as e:
         print(f"Failed to wait for element with XPath {xpath}: {str(e)}")
         return False
@@ -1254,6 +1393,14 @@ def long_click_xpath(
                 center_x = (bounds.get("left", 0) + bounds.get("right", 0)) / 2
                 center_y = (bounds.get("top", 0) + bounds.get("bottom", 0)) / 2
                 d.long_click(center_x, center_y, duration)
+
+                # RECORDING: Log this action if recording is active
+                _record_action("long_click_xpath", {
+                    "xpath": xpath,
+                    "duration": duration,
+                    "device_id": device_id
+                }, True)
+
                 return True
         return False
     except Exception as e:
@@ -1283,6 +1430,15 @@ def send_text_xpath(
             if clear:
                 el.clear_text()
             el.set_text(text)
+
+            # RECORDING: Log this action if recording is active
+            _record_action("send_text_xpath", {
+                "xpath": xpath,
+                "text": text,
+                "clear": clear,
+                "device_id": device_id
+            }, True)
+
             return True
         return False
     except Exception as e:
@@ -1309,6 +1465,13 @@ def install_app(apk_path: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.app_install(apk_path)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("install_app", {
+            "apk_path": apk_path,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to install app from {apk_path}: {str(e)}")
@@ -1329,6 +1492,13 @@ def uninstall_app(package_name: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.app_uninstall(package_name)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("uninstall_app", {
+            "package_name": package_name,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to uninstall app {package_name}: {str(e)}")
@@ -1374,6 +1544,13 @@ def set_clipboard(text: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.set_clipboard(text)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("set_clipboard", {
+            "text": text,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to set clipboard: {str(e)}")
@@ -1413,6 +1590,14 @@ def click_at(x: float, y: float, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.click(x, y)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("click_at", {
+            "x": x,
+            "y": y,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to click at ({x}, {y}): {str(e)}")
@@ -1434,6 +1619,14 @@ def double_click_at(x: float, y: float, device_id: Optional[str] = None) -> bool
     try:
         d = u2.connect(device_id)
         d.double_click(x, y)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("double_click_at", {
+            "x": x,
+            "y": y,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to double click at ({x}, {y}): {str(e)}")
@@ -1482,6 +1675,14 @@ def pull_file(
     try:
         d = u2.connect(device_id)
         d.pull(device_path, local_path)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("pull_file", {
+            "device_path": device_path,
+            "local_path": local_path,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to pull file from {device_path}: {str(e)}")
@@ -1505,6 +1706,14 @@ def push_file(
     try:
         d = u2.connect(device_id)
         d.push(local_path, device_path)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("push_file", {
+            "local_path": local_path,
+            "device_path": device_path,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to push file to {device_path}: {str(e)}")
@@ -1530,6 +1739,13 @@ def set_orientation(orientation: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.set_orientation(orientation)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("set_orientation", {
+            "orientation": orientation,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to set orientation to {orientation}: {str(e)}")
@@ -1568,6 +1784,13 @@ def freeze_rotation(freeze: bool = True, device_id: Optional[str] = None) -> boo
     try:
         d = u2.connect(device_id)
         d.freeze_rotation(freeze)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("freeze_rotation", {
+            "freeze": freeze,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to freeze rotation: {str(e)}")
@@ -1610,6 +1833,15 @@ def double_click(
 
         if el and el.exists:
             el.double_click()
+
+            # RECORDING: Log this action if recording is active
+            _record_action("double_click", {
+                "selector": selector,
+                "selector_type": selector_type,
+                "timeout": timeout,
+                "device_id": device_id
+            }, True)
+
             return True
         return False
     except Exception as e:
@@ -1631,6 +1863,13 @@ def scroll_forward(steps: int = 1, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d(scrollable=True).scroll.forward(steps=steps)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("scroll_forward", {
+            "steps": steps,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to scroll forward: {str(e)}")
@@ -1651,6 +1890,13 @@ def scroll_backward(steps: int = 1, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d(scrollable=True).scroll.backward(steps=steps)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("scroll_backward", {
+            "steps": steps,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to scroll backward: {str(e)}")
@@ -1670,6 +1916,12 @@ def fling_forward(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d(scrollable=True).fling.forward()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("fling_forward", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to fling forward: {str(e)}")
@@ -1689,6 +1941,12 @@ def fling_backward(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d(scrollable=True).fling.backward()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("fling_backward", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to fling backward: {str(e)}")
@@ -1708,6 +1966,12 @@ def scroll_to_beginning(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d(scrollable=True).scroll.toBeginning()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("scroll_to_beginning", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to scroll to beginning: {str(e)}")
@@ -1727,6 +1991,12 @@ def scroll_to_end(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d(scrollable=True).scroll.toEnd()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("scroll_to_end", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to scroll to end: {str(e)}")
@@ -1751,6 +2021,12 @@ def open_notification(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.open_notification()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("open_notification", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to open notification: {str(e)}")
@@ -1770,6 +2046,12 @@ def open_quick_settings(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.open_quick_settings()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("open_quick_settings", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to open quick settings: {str(e)}")
@@ -1790,6 +2072,13 @@ def disable_popups(enable: bool = True, device_id: Optional[str] = None) -> bool
     try:
         d = u2.connect(device_id)
         d.disable_popups(enable)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("disable_popups", {
+            "enable": enable,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to disable popups: {str(e)}")
@@ -1814,6 +2103,12 @@ def healthcheck(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.healthcheck()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("healthcheck", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to perform healthcheck: {str(e)}")
@@ -1833,6 +2128,12 @@ def reset_uiautomator(device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.reset_uiautomator()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("reset_uiautomator", {
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to reset uiautomator: {str(e)}")
@@ -1853,6 +2154,13 @@ def send_action(action: str = "search", device_id: Optional[str] = None) -> bool
     try:
         d = u2.connect(device_id)
         d.send_action(action)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("send_action", {
+            "action": action,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to send action {action}: {str(e)}")
@@ -1876,6 +2184,14 @@ def pinch_in(
     try:
         d = u2.connect(device_id)
         d.pinch_in(percent=percent, steps=steps)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("pinch_in", {
+            "percent": percent,
+            "steps": steps,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to pinch in: {str(e)}")
@@ -1899,6 +2215,14 @@ def pinch_out(
     try:
         d = u2.connect(device_id)
         d.pinch_out(percent=percent, steps=steps)
+
+        # RECORDING: Log this action if recording is active
+        _record_action("pinch_out", {
+            "percent": percent,
+            "steps": steps,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to pinch out: {str(e)}")
@@ -1919,6 +2243,13 @@ def watcher_start(name: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.watcher(name).start()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("watcher_start", {
+            "name": name,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to start watcher {name}: {str(e)}")
@@ -1939,6 +2270,13 @@ def watcher_stop(name: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.watcher(name).stop()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("watcher_stop", {
+            "name": name,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to stop watcher {name}: {str(e)}")
@@ -1959,6 +2297,13 @@ def watcher_remove(name: str, device_id: Optional[str] = None) -> bool:
     try:
         d = u2.connect(device_id)
         d.watcher(name).remove()
+
+        # RECORDING: Log this action if recording is active
+        _record_action("watcher_remove", {
+            "name": name,
+            "device_id": device_id
+        }, True)
+
         return True
     except Exception as e:
         print(f"Failed to remove watcher {name}: {str(e)}")
