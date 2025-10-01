@@ -283,87 +283,71 @@ def get_recording_status() -> Dict[str, Any]:
 
 @mcp.tool(
     name="replay_scenario",
-    description="Replay a recorded scenario from JSON file"
+    description="Replay a recorded scenario from JSON file with enhanced resilience"
 )
 def replay_scenario(
     scenario_file: str,
     device_id: Optional[str] = None,
-    speed_multiplier: float = 1.0
+    speed_multiplier: float = 1.0,
+    retry_attempts: int = 3,
+    capture_screenshots: bool = False,
+    stop_on_error: bool = False
 ) -> Dict[str, Any]:
-    """Replay a previously recorded scenario.
+    """Replay a previously recorded scenario with comprehensive error handling.
+
+    Feature 3: Enhanced Scenario Replay Engine
+    - Supports all 48 action tools from Feature 1
+    - Automatic retry with exponential backoff
+    - Optional screenshot capture for debugging
+    - Detailed execution reports
 
     Args:
         scenario_file: Path to scenario JSON file
-        device_id: Optional specific device (default: any connected device)
-        speed_multiplier: Speed multiplier for delays (1.0 = normal speed)
+        device_id: Optional specific device (default: first available device)
+        speed_multiplier: Playback speed multiplier (1.0 = normal, 2.0 = 2x faster)
+        retry_attempts: Number of retry attempts for failed actions (default: 3)
+        capture_screenshots: Capture before/after screenshots for each action (default: False)
+        stop_on_error: Stop replay on first error (default: False, continue despite failures)
 
     Returns:
-        status: "PASSED" or "FAILED"
-        duration_ms: Replay execution time
-        actions_executed: Number of actions executed
-        actions_passed: Number of successful actions
-        actions_failed: Number of failed actions
+        Comprehensive execution report with:
+        - success: bool (overall success)
+        - scenario: metadata (session name, device ID, etc.)
+        - execution: statistics (total actions, success rate, duration, etc.)
+        - action_results: detailed per-action results with timing and errors
+        - errors: list of global errors
+        - failed_actions: list of actions that failed
     """
     try:
-        # Load scenario
-        with open(scenario_file) as f:
-            scenario = json.load(f)
+        from replay import ReplayEngine, ReplayConfig
 
-        actions = scenario.get("actions", [])
-        passed = 0
-        failed = 0
-        start_time = datetime.now()
+        # Build configuration from parameters
+        config = ReplayConfig(
+            retry_attempts=retry_attempts,
+            capture_screenshots=capture_screenshots,
+            speed_multiplier=speed_multiplier,
+            stop_on_error=stop_on_error,
+            screenshot_on_error=True,  # Always capture on error for debugging
+            wait_for_screen_on=True
+        )
 
-        for action in actions:
-            tool_name = action["tool"]
-            params = action["params"]
+        # Create engine and execute replay
+        engine = ReplayEngine(device_id=device_id, config=config)
+        report = engine.replay(scenario_file)
 
-            # Apply delay before action
-            delay_ms = action.get("delay_before_ms", 0)
-            if delay_ms > 0:
-                time.sleep((delay_ms / 1000) * speed_multiplier)
-
-            # Execute the tool
-            result = False
-            try:
-                if tool_name == "click":
-                    result = click(**params)
-                elif tool_name == "send_text":
-                    result = send_text(**params)
-                # Add more tools as needed
-                else:
-                    print(f"Unknown tool: {tool_name}")
-                    failed += 1
-                    continue
-
-                if result:
-                    passed += 1
-                else:
-                    failed += 1
-
-            except Exception as e:
-                print(f"Action {action['id']} failed: {e}")
-                failed += 1
-
-            # Apply delay after action
-            delay_after_ms = action.get("delay_after_ms", 0)
-            if delay_after_ms > 0:
-                time.sleep((delay_after_ms / 1000) * speed_multiplier)
-
-        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-
-        return {
-            "status": "PASSED" if failed == 0 else "FAILED",
-            "duration_ms": duration_ms,
-            "actions_executed": len(actions),
-            "actions_passed": passed,
-            "actions_failed": failed
-        }
+        return report
 
     except Exception as e:
         return {
+            "success": False,
             "status": "ERROR",
-            "error": str(e)
+            "error": str(e),
+            "execution": {
+                "total_actions": 0,
+                "successful_actions": 0,
+                "failed_actions": 0,
+                "duration_seconds": 0
+            }
         }
 
 
