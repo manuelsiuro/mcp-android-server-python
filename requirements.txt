@@ -1,0 +1,14 @@
+# MCP Android Agent Dependencies
+# Generated from pyproject.toml for pip compatibility
+# For uv users: use `uv pip install` instead
+
+asyncio>=3.4.3
+mcp[cli]>=1.7.0
+uiautodev>=0.6.0
+uiautomator2>=3.2.9
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+ruff>=0.11.8
+pytest>=8.3.5
+pytest-cov>=6.1.1
+pytest-asyncio>=0.26.0

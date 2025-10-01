@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mcp-android": {
+      "type": "stdio",
+      "command": "bash",
+      "args": ["-c", "cd /Users/manuel.siuro/www/mcp-android-server-python && source .venv/bin/activate && python3 server.py"]
+    }
+  }
+}
