@@ -320,6 +320,10 @@ class AgentResponse:
     errors: List[AgentError] = field(default_factory=list)
     metadata: Optional[AgentMetadata] = None
 
+    def __getitem__(self, key: str) -> Any:
+        """Allow dictionary-style access for backward compatibility."""
+        return getattr(self, key)
+
 
 # ============================================================================
 # Quality & Testing Models

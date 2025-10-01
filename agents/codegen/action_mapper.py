@@ -16,18 +16,110 @@ class ActionMapperAgent(SubAgent):
             "compose": "performClick()",
             "imports": ["androidx.test.espresso.action.ViewActions.click"],
         },
+        "click_xpath": {
+            "espresso": "perform(click())",
+            "compose": "performClick()",
+            "imports": ["androidx.test.espresso.action.ViewActions.click"],
+        },
+        "click_at": {
+            "espresso": "perform(clickXY({x}, {y}))",  # Custom action needed
+            "compose": "performTouchInput {{ click(Offset({x}f, {y}f)) }}",
+            "imports": ["androidx.test.espresso.action.ViewActions.click"],
+            "custom_action": "clickXY",
+        },
+        "double_click": {
+            "espresso": "perform(doubleClick())",
+            "compose": "performClick(); performClick()",
+            "imports": ["androidx.test.espresso.action.ViewActions.doubleClick"],
+        },
+        "double_click_at": {
+            "espresso": "perform(doubleClickXY({x}, {y}))",  # Custom action
+            "compose": "performTouchInput {{ click(Offset({x}f, {y}f)); click(Offset({x}f, {y}f)) }}",
+            "imports": ["androidx.test.espresso.action.ViewActions.doubleClick"],
+            "custom_action": "doubleClickXY",
+        },
+        "long_click": {
+            "espresso": "perform(longClick())",
+            "compose": "performTouchInput {{ longClick() }}",
+            "imports": ["androidx.test.espresso.action.ViewActions.longClick"],
+        },
+        "long_click_xpath": {
+            "espresso": "perform(longClick())",
+            "compose": "performTouchInput {{ longClick() }}",
+            "imports": ["androidx.test.espresso.action.ViewActions.longClick"],
+        },
         "send_text": {
             "espresso": 'perform(clearText(), typeText("{text}"))',
-            "compose": 'performTextInput("{text}")',
+            "compose": 'performTextClearance(); performTextInput("{text}")',
+            "imports": [
+                "androidx.test.espresso.action.ViewActions.clearText",
+                "androidx.test.espresso.action.ViewActions.typeText",
+            ],
+        },
+        "send_text_xpath": {
+            "espresso": 'perform(clearText(), typeText("{text}"))',
+            "compose": 'performTextClearance(); performTextInput("{text}")',
             "imports": [
                 "androidx.test.espresso.action.ViewActions.clearText",
                 "androidx.test.espresso.action.ViewActions.typeText",
             ],
         },
         "swipe": {
-            "espresso": "perform(swipeLeft())",
-            "compose": "performTouchInput { swipeLeft() }",
-            "imports": ["androidx.test.espresso.action.ViewActions.swipeLeft"],
+            "espresso": "perform(swipe({start_x}, {start_y}, {end_x}, {end_y}))",  # Custom
+            "compose": "performTouchInput {{ swipe(start = Offset({start_x}f, {start_y}f), end = Offset({end_x}f, {end_y}f)) }}",
+            "imports": ["androidx.test.espresso.action.ViewActions.swipe"],
+            "custom_action": "customSwipe",
+        },
+        "scroll_to": {
+            "espresso": "perform(scrollTo())",
+            "compose": "performScrollTo()",
+            "imports": ["androidx.test.espresso.action.ViewActions.scrollTo"],
+        },
+        "scroll_forward": {
+            "espresso": "perform(swipeUp())",
+            "compose": "performScrollToIndex({steps})",
+            "imports": ["androidx.test.espresso.action.ViewActions.swipeUp"],
+        },
+        "scroll_backward": {
+            "espresso": "perform(swipeDown())",
+            "compose": "performScrollToIndex(-{steps})",
+            "imports": ["androidx.test.espresso.action.ViewActions.swipeDown"],
+        },
+        "scroll_to_beginning": {
+            "espresso": "perform(swipeDown())",  # Repeated swipes
+            "compose": "performScrollToIndex(0)",
+            "imports": ["androidx.test.espresso.action.ViewActions.swipeDown"],
+        },
+        "scroll_to_end": {
+            "espresso": "perform(swipeUp())",  # Repeated swipes
+            "compose": "performScrollToNode(hasScrollAction())",
+            "imports": ["androidx.test.espresso.action.ViewActions.swipeUp"],
+        },
+        "press_key": {
+            "espresso": 'pressKey("{key}")',  # Espresso.pressKey
+            "compose": 'performKeyPress(KeyEvent(Key.{key}))',
+            "imports": ["androidx.test.espresso.Espresso.pressKey"],
+        },
+        "screenshot": {
+            "espresso": "// Screenshot captured",
+            "compose": "// Screenshot captured",
+            "imports": [],
+        },
+        "wait_for_element": {
+            "espresso": "check(matches(isDisplayed()))",
+            "compose": "assertExists()",
+            "imports": [
+                "androidx.test.espresso.assertion.ViewAssertions.matches",
+                "androidx.test.espresso.matcher.ViewMatchers.isDisplayed",
+            ],
+        },
+        "wait_xpath": {
+            "espresso": "check(matches(isDisplayed()))",
+            "compose": "assertExists()",
+            "imports": [
+                "androidx.test.espresso.assertion.ViewAssertions.matches",
+                "androidx.test.espresso.matcher.ViewMatchers.isDisplayed",
+            ],
         },
     }
 
@@ -45,19 +137,40 @@ class ActionMapperAgent(SubAgent):
 
         mapping = self.ACTION_MAPPINGS.get(tool, {})
 
+        if not mapping:
+            # Unknown action - return comment
+            return MappedAction(
+                espresso_code=f"// TODO: Implement {tool} action manually",
+                custom_actions=[],
+                assertions=[],
+                imports=[],
+            )
+
         if ui_framework == UIFramework.COMPOSE:
             code = mapping.get("compose", "")
         else:
             code = mapping.get("espresso", "")
 
-        # Substitute parameters
-        if "{text}" in code and "text" in params:
-            code = code.format(text=params["text"])
+        # Substitute all parameters in the code
+        try:
+            code = code.format(**params)
+        except KeyError as e:
+            self.logger.warning(f"Missing parameter {e} for action {tool}")
+
+        # Check if custom action is needed
+        custom_actions = []
+        if "custom_action" in mapping:
+            custom_actions.append(mapping["custom_action"])
+
+        # Generate assertions if this is a wait/check action
+        assertions = []
+        if tool.startswith("wait_"):
+            assertions.append("Element should be visible and interactable")
 
         return MappedAction(
             espresso_code=code,
-            custom_actions=[],
-            assertions=[],
+            custom_actions=custom_actions,
+            assertions=assertions,
             imports=mapping.get("imports", []),
         )
 

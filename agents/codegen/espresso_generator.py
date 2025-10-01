@@ -113,39 +113,114 @@ class EspressoCodeGeneratorAgent(PrimaryAgent):
         options: CodeGenerationOptions,
     ) -> str:
         """Generate Kotlin test code."""
-        actions = scenario.get("actions", [])
+        from .selector_mapper import SelectorMapperAgent
+        from .action_mapper import ActionMapperAgent
 
-        # Build test method body
+        actions = scenario.get("actions", [])
+        metadata = scenario.get("metadata", {})
+
+        # Initialize subagents
+        selector_mapper = SelectorMapperAgent()
+        action_mapper = ActionMapperAgent()
+
+        # Build test method body with comprehensive action mapping
         test_body_lines = []
-        for action in actions:
-            # In real implementation, would use SelectorMapper and ActionMapper
+        all_imports = set()
+
+        if options.include_comments:
+            test_body_lines.append(
+                f"        // Generated from scenario: {metadata.get('name', 'Unknown')}"
+            )
+            test_body_lines.append(
+                f"        // Created: {metadata.get('created_at', 'Unknown')}"
+            )
+            test_body_lines.append("        ")
+
+        for i, action in enumerate(actions, 1):
             tool = action.get("tool", "")
             params = action.get("params", {})
 
-            if tool == "click":
-                selector = params.get("selector", "")
+            if options.include_comments:
+                test_body_lines.append(f"        // Action {i}: {tool}")
+
+            # Add delay if specified
+            delay_before = action.get("delay_before_ms", 0)
+            if delay_before > 0:
                 test_body_lines.append(
-                    f'        onView(withText("{selector}")).perform(click())'
+                    f"        Thread.sleep({delay_before}L)"
                 )
-            elif tool == "send_text":
-                text = params.get("text", "")
+
+            # Map action using ActionMapper subagent
+            try:
+                mapped_action = action_mapper.execute({
+                    "action": action,
+                    "target_language": "kotlin",
+                    "ui_framework": ui_framework.value
+                })
+
+                if mapped_action["status"] == "success":
+                    action_data = mapped_action["data"]
+
+                    # Map selector if needed
+                    if tool in ["click", "click_xpath", "send_text", "long_click", "double_click"]:
+                        selector = params.get("selector", params.get("xpath", ""))
+                        selector_type = params.get("selector_type", "xpath" if "xpath" in tool else "text")
+
+                        mapped_selector = selector_mapper.execute({
+                            "selector": selector,
+                            "selector_type": selector_type,
+                            "target_language": "kotlin",
+                            "ui_framework": ui_framework.value
+                        })
+
+                        if mapped_selector["status"] == "success":
+                            selector_code = mapped_selector["data"].espresso_code
+                            action_code = action_data.espresso_code
+
+                            # Combine selector and action
+                            test_body_lines.append(
+                                f"        onView({selector_code}).{action_code}"
+                            )
+
+                            # Collect imports
+                            all_imports.update(mapped_selector["data"].imports)
+                            all_imports.update(action_data.imports)
+                    else:
+                        # Action without selector (e.g., press_key, scroll)
+                        test_body_lines.append(f"        {action_data.espresso_code}")
+                        all_imports.update(action_data.imports)
+
+            except Exception as e:
+                self.logger.warning(f"Failed to map action {tool}: {e}")
                 test_body_lines.append(
-                    f'        onView(isFocused()).perform(typeText("{text}"))'
+                    f"        // TODO: Manual implementation needed for {tool}"
                 )
+
+            # Add delay after if specified
+            delay_after = action.get("delay_after_ms", 0)
+            if delay_after > 0:
+                test_body_lines.append(
+                    f"        Thread.sleep({delay_after}L)"
+                )
+
+            test_body_lines.append("")  # Blank line between actions
 
         test_body = "\n".join(test_body_lines)
 
+        # Generate imports
+        import_lines = self._generate_kotlin_imports(ui_framework, all_imports)
+
         code = f"""package {package_name}
 
-import androidx.test.ext.junit.rules.ActivityScenarioRule
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.*
-import androidx.test.espresso.matcher.ViewMatchers.*
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
+{import_lines}
 
+/**
+ * Generated Espresso test from recorded scenario
+ * Scenario: {metadata.get('name', 'Unknown')}
+ * Generated on: {metadata.get('created_at', 'Unknown')}
+ *
+ * Original scenario file: {scenario.get('_source_file', 'Unknown')}
+ */
 @RunWith(AndroidJUnit4::class)
 class {class_name} {{
 
@@ -160,6 +235,35 @@ class {class_name} {{
 """
         return code
 
+    def _generate_kotlin_imports(self, ui_framework: UIFramework, custom_imports: set) -> str:
+        """Generate Kotlin imports section."""
+        standard_imports = [
+            "import androidx.test.ext.junit.rules.ActivityScenarioRule",
+            "import androidx.test.ext.junit.runners.AndroidJUnit4",
+            "import org.junit.Rule",
+            "import org.junit.Test",
+            "import org.junit.runner.RunWith",
+        ]
+
+        if ui_framework == UIFramework.XML:
+            standard_imports.extend([
+                "import androidx.test.espresso.Espresso.onView",
+                "import androidx.test.espresso.action.ViewActions.*",
+                "import androidx.test.espresso.assertion.ViewAssertions.*",
+                "import androidx.test.espresso.matcher.ViewMatchers.*",
+            ])
+        elif ui_framework == UIFramework.COMPOSE:
+            standard_imports.extend([
+                "import androidx.compose.ui.test.junit4.createAndroidComposeRule",
+                "import androidx.compose.ui.test.onNodeWithText",
+                "import androidx.compose.ui.test.performClick",
+                "import androidx.compose.ui.test.performTextInput",
+            ])
+
+        # Add custom imports
+        all_imports = sorted(set(standard_imports) | custom_imports)
+        return "\n".join(all_imports)
+
     def _generate_java_test(
         self,
         scenario: Dict[str, Any],
@@ -169,8 +273,156 @@ class {class_name} {{
         options: CodeGenerationOptions,
     ) -> str:
         """Generate Java test code."""
-        # Similar to Kotlin but with Java syntax
-        return f"package {package_name};\n\n// Java test implementation\n"
+        from .selector_mapper import SelectorMapperAgent
+        from .action_mapper import ActionMapperAgent
+
+        actions = scenario.get("actions", [])
+        metadata = scenario.get("metadata", {})
+
+        # Initialize subagents
+        selector_mapper = SelectorMapperAgent()
+        action_mapper = ActionMapperAgent()
+
+        # Build test method body
+        test_body_lines = []
+        all_imports = set()
+
+        if options.include_comments:
+            test_body_lines.append(
+                f"        // Generated from scenario: {metadata.get('name', 'Unknown')}"
+            )
+            test_body_lines.append(
+                f"        // Created: {metadata.get('created_at', 'Unknown')}"
+            )
+            test_body_lines.append("        ")
+
+        for i, action in enumerate(actions, 1):
+            tool = action.get("tool", "")
+            params = action.get("params", {})
+
+            if options.include_comments:
+                test_body_lines.append(f"        // Action {i}: {tool}")
+
+            # Add delay if specified
+            delay_before = action.get("delay_before_ms", 0)
+            if delay_before > 0:
+                test_body_lines.append(
+                    f"        Thread.sleep({delay_before}L);"
+                )
+
+            # Map action using ActionMapper subagent
+            try:
+                mapped_action = action_mapper.execute({
+                    "action": action,
+                    "target_language": "java",
+                    "ui_framework": ui_framework.value
+                })
+
+                if mapped_action["status"] == "success":
+                    action_data = mapped_action["data"]
+
+                    # Map selector if needed
+                    if tool in ["click", "click_xpath", "send_text", "long_click", "double_click"]:
+                        selector = params.get("selector", params.get("xpath", ""))
+                        selector_type = params.get("selector_type", "xpath" if "xpath" in tool else "text")
+
+                        mapped_selector = selector_mapper.execute({
+                            "selector": selector,
+                            "selector_type": selector_type,
+                            "target_language": "java",
+                            "ui_framework": ui_framework.value
+                        })
+
+                        if mapped_selector["status"] == "success":
+                            selector_code = mapped_selector["data"].espresso_code
+                            action_code = action_data.espresso_code
+
+                            # Combine selector and action
+                            test_body_lines.append(
+                                f"        onView({selector_code}).{action_code};"
+                            )
+
+                            # Collect imports
+                            all_imports.update(mapped_selector["data"].imports)
+                            all_imports.update(action_data.imports)
+                    else:
+                        # Action without selector
+                        test_body_lines.append(f"        {action_data.espresso_code};")
+                        all_imports.update(action_data.imports)
+
+            except Exception as e:
+                self.logger.warning(f"Failed to map action {tool}: {e}")
+                test_body_lines.append(
+                    f"        // TODO: Manual implementation needed for {tool}"
+                )
+
+            # Add delay after if specified
+            delay_after = action.get("delay_after_ms", 0)
+            if delay_after > 0:
+                test_body_lines.append(
+                    f"        Thread.sleep({delay_after}L);"
+                )
+
+            test_body_lines.append("")  # Blank line between actions
+
+        test_body = "\n".join(test_body_lines)
+
+        # Generate imports
+        import_lines = self._generate_java_imports(ui_framework, all_imports)
+
+        code = f"""package {package_name};
+
+{import_lines}
+
+/**
+ * Generated Espresso test from recorded scenario
+ * Scenario: {metadata.get('name', 'Unknown')}
+ * Generated on: {metadata.get('created_at', 'Unknown')}
+ *
+ * Original scenario file: {scenario.get('_source_file', 'Unknown')}
+ */
+@RunWith(AndroidJUnit4.class)
+public class {class_name} {{
+
+    @Rule
+    public ActivityScenarioRule<MainActivity> activityRule =
+        new ActivityScenarioRule<>(MainActivity.class);
+
+    @Test
+    public void testScenario() throws InterruptedException {{
+{test_body}
+    }}
+}}
+"""
+        return code
+
+    def _generate_java_imports(self, ui_framework: UIFramework, custom_imports: set) -> str:
+        """Generate Java imports section."""
+        standard_imports = [
+            "import androidx.test.ext.junit.rules.ActivityScenarioRule;",
+            "import androidx.test.ext.junit.runners.AndroidJUnit4;",
+            "import org.junit.Rule;",
+            "import org.junit.Test;",
+            "import org.junit.runner.RunWith;",
+        ]
+
+        if ui_framework == UIFramework.XML:
+            standard_imports.extend([
+                "import static androidx.test.espresso.Espresso.onView;",
+                "import static androidx.test.espresso.action.ViewActions.*;",
+                "import static androidx.test.espresso.assertion.ViewAssertions.*;",
+                "import static androidx.test.espresso.matcher.ViewMatchers.*;",
+            ])
+        elif ui_framework == UIFramework.COMPOSE:
+            standard_imports.extend([
+                "import androidx.compose.ui.test.junit4.ComposeTestRule;",
+                "import androidx.compose.ui.test.junit4.createAndroidComposeRule;",
+            ])
+
+        # Add custom imports (ensure they end with semicolons for Java)
+        formatted_custom = {imp if imp.endswith(";") else imp + ";" for imp in custom_imports}
+        all_imports = sorted(set(standard_imports) | formatted_custom)
+        return "\n".join(all_imports)
 
     def _format_code(self, code: str, language: Language) -> str:
         """Format generated code."""

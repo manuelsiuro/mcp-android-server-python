@@ -367,6 +367,84 @@ def replay_scenario(
         }
 
 
+@mcp.tool(
+    name="generate_espresso_code",
+    description="Generate Espresso test code from a recorded scenario"
+)
+def generate_espresso_code(
+    scenario_file: str,
+    language: str = "kotlin",
+    package_name: Optional[str] = None,
+    class_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """Generate Espresso test code from a recorded scenario.
+
+    Args:
+        scenario_file: Path to scenario JSON file
+        language: "kotlin" or "java" (default: kotlin)
+        package_name: Target package name (default: extracted from scenario or com.example.app)
+        class_name: Test class name (default: generated from scenario name)
+
+    Returns:
+        code: Generated test code as string
+        file_path: Path where code was saved
+        imports: List of required imports
+        warnings: List of manual adjustments needed
+        ui_framework: Detected UI framework (xml/compose/hybrid)
+    """
+    try:
+        # Import the code generator agent
+        from agents.codegen.espresso_generator import EspressoCodeGeneratorAgent
+
+        # Initialize the code generator
+        generator = EspressoCodeGeneratorAgent()
+
+        # Prepare inputs
+        inputs = {
+            "scenario_file": scenario_file,
+            "language": language,
+            "package_name": package_name or "com.example.app",
+            "class_name": class_name,
+            "options": {
+                "include_comments": True,
+                "use_idling_resources": False,
+                "generate_custom_actions": True,
+            }
+        }
+
+        # Execute code generation
+        result = generator.execute(inputs)
+
+        if result["status"] == "success":
+            generated_code = result["data"]
+            return {
+                "code": generated_code.code,
+                "file_path": generated_code.file_path,
+                "imports": generated_code.imports,
+                "warnings": generated_code.warnings,
+                "ui_framework": generated_code.ui_framework.value,
+                "custom_actions": generated_code.custom_actions,
+                "status": "success"
+            }
+        else:
+            return {
+                "error": "Code generation failed",
+                "details": result.get("errors", []),
+                "status": "failed"
+            }
+
+    except FileNotFoundError:
+        return {
+            "error": f"Scenario file not found: {scenario_file}",
+            "status": "failed"
+        }
+    except Exception as e:
+        return {
+            "error": f"Failed to generate Espresso code: {str(e)}",
+            "status": "failed"
+        }
+
+
 # ============================================================================
 # END RECORDING TOOLS
 # ============================================================================
