@@ -363,10 +363,10 @@ def test_unlock_screen_failure(mock_connect):
     mock_connect.assert_called_once_with("testdevice")
 
 
-@patch("server.shutil.which")
+@patch("server.get_adb_path")
 @patch("server.subprocess.run")
-def test_check_adb_and_list_devices_success(mock_subprocess_run, mock_shutil_which):
-    mock_shutil_which.return_value = "/usr/bin/adb"
+def test_check_adb_and_list_devices_success(mock_subprocess_run, mock_get_adb_path):
+    mock_get_adb_path.return_value = "/usr/bin/adb"
     mock_process = MagicMock()
     mock_process.stdout = (
         "List of devices attached\nemulator-5554\tdevice\n192.168.1.101:5555\tdevice\n"
@@ -377,33 +377,34 @@ def test_check_adb_and_list_devices_success(mock_subprocess_run, mock_shutil_whi
         "adb_exists": True,
         "devices": ["emulator-5554", "192.168.1.101:5555"],
         "error": None,
+        "adb_path": "/usr/bin/adb",
     }
     assert check_adb_and_list_devices() == expected_result
-    mock_shutil_which.assert_called_once_with("adb")
+    mock_get_adb_path.assert_called_once()
     mock_subprocess_run.assert_called_once_with(
         ["/usr/bin/adb", "devices"], capture_output=True, text=True, check=True
     )
 
 
-@patch("server.shutil.which")
-def test_check_adb_not_found(mock_shutil_which):
-    mock_shutil_which.return_value = None
+@patch("server.get_adb_path")
+def test_check_adb_not_found(mock_get_adb_path):
+    mock_get_adb_path.return_value = None
     expected_result = {
         "adb_exists": False,
         "devices": [],
-        "error": "adb command not found in PATH",
+        "error": "adb not found. Set ANDROID_HOME or ADB_PATH in .env file, or add adb to PATH",
     }
     assert check_adb_and_list_devices() == expected_result
-    mock_shutil_which.assert_called_once_with("adb")
+    mock_get_adb_path.assert_called_once()
 
 
-@patch("server.shutil.which")
+@patch("server.get_adb_path")
 @patch("server.subprocess.run")
-def test_check_adb_subprocess_error(mock_subprocess_run, mock_shutil_which):
-    mock_shutil_which.return_value = "/usr/bin/adb"
+def test_check_adb_subprocess_error(mock_subprocess_run, mock_get_adb_path):
+    mock_get_adb_path.return_value = "/usr/bin/adb"
     mock_subprocess_run.side_effect = Exception("ADB error")
 
-    expected_result = {"adb_exists": True, "devices": [], "error": "ADB error"}
+    expected_result = {"adb_exists": True, "devices": [], "error": "ADB error", "adb_path": "/usr/bin/adb"}
     assert check_adb_and_list_devices() == expected_result
 
 
@@ -431,10 +432,10 @@ def test_click_success(mock_connect):
     mock_device = MagicMock()
     mock_element = MagicMock()
     mock_element.exists = True
-    # Make the selector call return the mock_element
-    mock_device.return_value.wait.return_value = (
-        mock_element  # e.g. d(text=selector).wait(...)
-    )
+    mock_element.wait.return_value = True
+    mock_element.info = {"bounds": {"left": 100, "top": 200, "right": 300, "bottom": 400}}
+    # Make d(text=selector) return the mock_element
+    mock_device.return_value = mock_element
     mock_connect.return_value = mock_device
 
     assert (
@@ -443,8 +444,9 @@ def test_click_success(mock_connect):
     )
     mock_connect.assert_called_once_with("testdevice")
     mock_device.assert_called_once_with(text="TestButton")
-    mock_device.return_value.wait.assert_called_once_with(timeout=10.0)
-    mock_element.click.assert_called_once()
+    mock_element.wait.assert_called_once_with(timeout=10.0)
+    # Should click at center coordinates: (200, 300)
+    mock_device.click.assert_called_once_with(200.0, 300.0)
 
 
 @patch("server.u2.connect")
@@ -452,7 +454,8 @@ def test_click_element_not_found(mock_connect):
     mock_device = MagicMock()
     mock_element = MagicMock()
     mock_element.exists = False  # Simulate element not found
-    mock_device.return_value.wait.return_value = mock_element
+    mock_element.wait.return_value = False  # wait returns False when element not found
+    mock_device.return_value = mock_element
     mock_connect.return_value = mock_device
 
     assert (
@@ -463,8 +466,9 @@ def test_click_element_not_found(mock_connect):
     )
     mock_connect.assert_called_once_with("testdevice")
     mock_device.assert_called_once_with(resourceId="NonExistent")
-    mock_device.return_value.wait.assert_called_once_with(timeout=10.0)
-    mock_element.click.assert_not_called()
+    mock_element.wait.assert_called_once_with(timeout=10.0)
+    # Should not attempt to click
+    mock_device.click.assert_not_called()
 
 
 @patch("server.u2.connect")
@@ -655,6 +659,7 @@ def test_long_click_success(mock_connect):
     mock_device = MagicMock()
     mock_element = MagicMock()
     mock_element.exists = True
+    mock_element.info = {"bounds": {"left": 100, "top": 200, "right": 300, "bottom": 400}}
     mock_device.return_value = mock_element  # e.g. d(text=selector)
     mock_connect.return_value = mock_device
 
@@ -669,7 +674,8 @@ def test_long_click_success(mock_connect):
     )
     mock_connect.assert_called_once_with("testdevice")
     mock_device.assert_called_once_with(text="LongPress")
-    mock_element.long_click.assert_called_once_with(duration=1.5)
+    # Should long_click at center coordinates: (200, 300) with duration 1.5
+    mock_device.long_click.assert_called_once_with(200.0, 300.0, 1.5)
 
 
 @patch("server.u2.connect")

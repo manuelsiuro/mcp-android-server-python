@@ -7,16 +7,21 @@ Run this after starting the MCP server.
 
 Usage:
     python test_integration_recording.py
+
+Or with pytest:
+    pytest test_integration_recording.py::test_recording_integration -s
 """
 
 import time
 import json
 from pathlib import Path
+import pytest
 
 # Import server functions (assuming server.py is in same directory)
 import server
 
 
+@pytest.mark.skip(reason="Interactive test - requires user input and connected Android device")
 def test_recording_integration():
     """Test the full recording and replay workflow."""
 
