@@ -26,3 +26,7 @@ htmlcov/
 # MCP and logs
 *.log
 screenshots/
+
+# Generated test files and recorded scenarios
+generated_tests/
+scenarios/
