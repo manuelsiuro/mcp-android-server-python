@@ -22,10 +22,10 @@ class ActionMapperAgent(SubAgent):
             "imports": ["androidx.test.espresso.action.ViewActions.click"],
         },
         "click_at": {
-            "espresso": "perform(clickXY({x}, {y}))",  # Custom action needed
+            "espresso": "EspressoTestHelpers.clickAt({x}f, {y}f)",
             "compose": "performTouchInput {{ click(Offset({x}f, {y}f)) }}",
-            "imports": ["androidx.test.espresso.action.ViewActions.click"],
-            "custom_action": "clickXY",
+            "imports": ["com.android.test.espresso.utils.EspressoTestHelpers"],
+            "custom_action": None,  # No custom action needed, using utils
         },
         "double_click": {
             "espresso": "perform(doubleClick())",
@@ -33,10 +33,10 @@ class ActionMapperAgent(SubAgent):
             "imports": ["androidx.test.espresso.action.ViewActions.doubleClick"],
         },
         "double_click_at": {
-            "espresso": "perform(doubleClickXY({x}, {y}))",  # Custom action
+            "espresso": "EspressoTestHelpers.doubleClickAt({x}f, {y}f)",
             "compose": "performTouchInput {{ click(Offset({x}f, {y}f)); click(Offset({x}f, {y}f)) }}",
-            "imports": ["androidx.test.espresso.action.ViewActions.doubleClick"],
-            "custom_action": "doubleClickXY",
+            "imports": ["com.android.test.espresso.utils.EspressoTestHelpers"],
+            "custom_action": None,  # No custom action needed, using utils
         },
         "long_click": {
             "espresso": "perform(longClick())",

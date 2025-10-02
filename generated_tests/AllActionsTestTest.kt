@@ -10,6 +10,7 @@ androidx.test.espresso.action.ViewActions.swipe
 androidx.test.espresso.action.ViewActions.swipeUp
 androidx.test.espresso.action.ViewActions.typeText
 androidx.test.espresso.matcher.ViewMatchers.withText
+com.android.test.espresso.utils.EspressoTestHelpers
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.*
 import androidx.test.espresso.assertion.ViewAssertions.*
@@ -54,7 +55,7 @@ class AllActionsTestTest {
         onView(withText("Item")).perform(doubleClick())
 
         // Action 6: click_at
-        perform(clickXY(100, 200))
+        EspressoTestHelpers.clickAt(100f, 200f)
 
         // Action 7: swipe
         perform(swipe(100, 500, 100, 100))

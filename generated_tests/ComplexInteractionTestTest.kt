@@ -1,11 +1,11 @@
 package com.example.test
 
 androidx.test.espresso.Espresso.pressKey
-androidx.test.espresso.action.ViewActions.click
 androidx.test.espresso.action.ViewActions.longClick
 androidx.test.espresso.action.ViewActions.swipe
 androidx.test.espresso.action.ViewActions.swipeUp
 androidx.test.espresso.matcher.ViewMatchers.withText
+com.android.test.espresso.utils.EspressoTestHelpers
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.*
 import androidx.test.espresso.assertion.ViewAssertions.*
@@ -35,7 +35,7 @@ class ComplexInteractionTestTest {
         // Created: 2025-01-01T10:00:00Z
         
         // Action 1: click_at
-        perform(clickXY(540, 1200))
+        EspressoTestHelpers.clickAt(540f, 1200f)
 
         // Action 2: long_click
         onView(withText("Item")).perform(longClick())
