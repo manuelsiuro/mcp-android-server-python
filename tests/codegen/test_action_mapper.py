@@ -163,9 +163,9 @@ class TestActionMapperCoordinateActions:
         data = result["data"]
         assert "540" in data.espresso_code
         assert "1200" in data.espresso_code
-        # Should indicate custom action needed
-        assert len(data.custom_actions) > 0
-        assert "clickXY" in data.custom_actions
+        # Should use EspressoTestHelpers (no custom action needed)
+        assert "EspressoTestHelpers.clickAt" in data.espresso_code
+        assert "com.android.test.espresso.utils.EspressoTestHelpers" in data.imports
 
     def test_map_double_click_at_action(self, action_mapper):
         """Test mapping double_click_at action."""
@@ -187,7 +187,9 @@ class TestActionMapperCoordinateActions:
         data = result["data"]
         assert "100" in data.espresso_code
         assert "200" in data.espresso_code
-        assert len(data.custom_actions) > 0
+        # Should use EspressoTestHelpers (no custom action needed)
+        assert "EspressoTestHelpers.doubleClickAt" in data.espresso_code
+        assert "com.android.test.espresso.utils.EspressoTestHelpers" in data.imports
 
     def test_map_swipe_action(self, action_mapper):
         """Test mapping swipe action with coordinates."""
