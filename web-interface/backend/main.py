@@ -238,11 +238,13 @@ async def _execute_claude_query(prompt: str, device_id: Optional[str], websocket
 
         # Start subprocess from project root directory
         # This allows Claude CLI to find .claude/mcp-servers.json automatically
+        # Set limit to 10MB to handle large JSON responses (e.g., dump_hierarchy)
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=str(PROJECT_ROOT)  # ✅ KEY FIX: Claude finds .claude/ from this directory
+            cwd=str(PROJECT_ROOT),  # ✅ KEY FIX: Claude finds .claude/ from this directory
+            limit=10*1024*1024  # ✅ FIX: Increase buffer limit to 10MB for large responses
         )
 
         print(f"✅ Claude CLI process started (PID: {process.pid})")
@@ -655,10 +657,12 @@ async def get_devices():
         print(f"✅ ADB found, running: {adb_cmd} devices -l")
 
         # Run adb devices command asynchronously
+        # Set limit to 10MB for consistency (though communicate() doesn't use readline)
         process = await asyncio.create_subprocess_exec(
             adb_cmd, "devices", "-l",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            limit=10*1024*1024  # 10MB buffer limit for consistency
         )
 
         stdout, stderr = await asyncio.wait_for(
