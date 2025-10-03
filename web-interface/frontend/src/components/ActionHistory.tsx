@@ -59,6 +59,18 @@ export function ActionHistory() {
             </svg>
           </div>
           <h2 className="text-base font-semibold text-slate-800">Action History</h2>
+          <div className="group relative">
+            <svg className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="absolute left-0 top-6 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <p className="font-semibold mb-1">About Action History</p>
+              <p className="text-slate-300 leading-relaxed">
+                Automatically tracks all MCP Android tool executions initiated by Claude.
+                View parameters, results, and execution times for debugging and workflow analysis.
+              </p>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 cursor-pointer text-sm select-none group">
@@ -99,11 +111,26 @@ export function ActionHistory() {
             {error}
           </div>
         ) : actions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <svg className="w-12 h-12 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-sm font-medium text-slate-600">No actions recorded yet</p>
+            <p className="text-sm font-semibold text-slate-700 mb-2">No actions recorded yet</p>
+            <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+              Actions will appear here automatically when Claude uses MCP Android tools.
+              Try asking Claude to interact with your device (e.g., "take a screenshot" or "click on the login button").
+            </p>
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-xs text-blue-700">
+                  <span className="font-semibold">Tip:</span> This history tracks all MCP tool calls made through Claude,
+                  including click, send_text, screenshot, and 60+ other Android automation tools.
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">

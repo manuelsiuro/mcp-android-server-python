@@ -208,9 +208,12 @@ async def _execute_claude_query(prompt: str, device_id: Optional[str], websocket
     1. Sets working directory (cwd) to project root so Claude finds .claude/mcp-servers.json
     2. Enhances prompt with MCP tool awareness
     3. Comprehensive error handling and diagnostics
+    4. Records MCP tool uses to action history
     """
+    import uuid
     process = None
     message_count = 0
+    active_tool_uses = {}  # Track tool uses by ID to match with results
 
     try:
         # Build enhanced prompt with MCP context and device_id
@@ -262,6 +265,50 @@ async def _execute_claude_query(prompt: str, device_id: Optional[str], websocket
 
                 # Parse the JSON message
                 message_data = json.loads(line_str)
+
+                # Extract and record tool uses for action history
+                if isinstance(message_data, dict):
+                    # Check if this is a tool use message
+                    if message_data.get("type") == "tool_use":
+                        tool_use_id = message_data.get("id")
+                        tool_name = message_data.get("name", "")
+                        tool_input = message_data.get("input", {})
+
+                        # Store tool use for later matching with result
+                        active_tool_uses[tool_use_id] = {
+                            "id": str(uuid.uuid4()),
+                            "timestamp": datetime.now().isoformat(),
+                            "type": "claude_tool_use",
+                            "tool": tool_name,
+                            "params": tool_input,
+                            "tool_use_id": tool_use_id
+                        }
+                        print(f"🔧 Detected tool use: {tool_name} (ID: {tool_use_id})")
+
+                    # Check if this is a tool result message
+                    elif message_data.get("type") == "tool_result":
+                        tool_use_id = message_data.get("tool_use_id")
+                        is_error = message_data.get("is_error", False)
+                        content = message_data.get("content", [])
+
+                        # Find matching tool use
+                        if tool_use_id in active_tool_uses:
+                            action_record = active_tool_uses[tool_use_id]
+                            action_record["result"] = {
+                                "success": not is_error,
+                                "data": content,
+                                "is_error": is_error
+                            }
+
+                            # Add to action history
+                            action_history.append(action_record)
+                            if len(action_history) > 100:
+                                action_history.pop(0)
+
+                            print(f"✅ Recorded action: {action_record['tool']} - {'Failed' if is_error else 'Success'}")
+
+                            # Remove from active tracking
+                            del active_tool_uses[tool_use_id]
 
                 # Forward to WebSocket
                 await websocket.send_json({
@@ -450,6 +497,14 @@ async def call_mcp_tool(request: MCPToolRequest):
     Proxy endpoint to call MCP Android tools directly
     This allows the frontend to invoke tools without going through Claude
     """
+    import time
+    import uuid
+
+    # Generate action ID and timestamp
+    action_id = str(uuid.uuid4())
+    timestamp = datetime.now().isoformat()
+    start_time = time.time()
+
     try:
         # Forward request to MCP server
         response = await http_client.post(
@@ -457,14 +512,75 @@ async def call_mcp_tool(request: MCPToolRequest):
             json=request.parameters
         )
 
+        # Calculate execution time
+        execution_time_ms = int((time.time() - start_time) * 1000)
+
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+
+            # Record successful action to history
+            action_record = {
+                "id": action_id,
+                "timestamp": timestamp,
+                "type": "mcp_tool",
+                "tool": request.tool_name,
+                "params": request.parameters,
+                "result": {
+                    "success": True,
+                    "data": result,
+                    "execution_time_ms": execution_time_ms
+                }
+            }
+            action_history.append(action_record)
+
+            # Keep only last 100 actions
+            if len(action_history) > 100:
+                action_history.pop(0)
+
+            return result
         else:
+            # Record failed action to history
+            error_detail = f"MCP tool call failed: {response.text}"
+            action_record = {
+                "id": action_id,
+                "timestamp": timestamp,
+                "type": "mcp_tool",
+                "tool": request.tool_name,
+                "params": request.parameters,
+                "result": {
+                    "success": False,
+                    "error": error_detail,
+                    "execution_time_ms": execution_time_ms
+                }
+            }
+            action_history.append(action_record)
+
+            if len(action_history) > 100:
+                action_history.pop(0)
+
             raise HTTPException(
                 status_code=response.status_code,
-                detail=f"MCP tool call failed: {response.text}"
+                detail=error_detail
             )
     except httpx.RequestError as e:
+        # Record connection error to history
+        action_record = {
+            "id": action_id,
+            "timestamp": timestamp,
+            "type": "mcp_tool",
+            "tool": request.tool_name,
+            "params": request.parameters,
+            "result": {
+                "success": False,
+                "error": f"Cannot connect to MCP server: {str(e)}",
+                "execution_time_ms": 0
+            }
+        }
+        action_history.append(action_record)
+
+        if len(action_history) > 100:
+            action_history.pop(0)
+
         raise HTTPException(
             status_code=503,
             detail=f"Cannot connect to MCP server: {str(e)}"
