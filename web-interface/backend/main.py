@@ -85,6 +85,13 @@ class ScreenshotRequest(BaseModel):
     device_id: Optional[str] = None
 
 
+class StartRecordingRequest(BaseModel):
+    session_name: str
+    description: Optional[str] = None
+    capture_screenshots: bool = True
+    device_id: Optional[str] = None
+
+
 # ================== Health Check ==================
 
 @app.get("/")
@@ -1074,6 +1081,172 @@ async def delete_scenario(scenario_name: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete scenario: {str(e)}"
+        )
+
+
+# ================== Recording Control Endpoints ==================
+
+@app.post("/api/recording/start")
+async def start_recording(request: StartRecordingRequest):
+    """Start recording user interactions"""
+    print(f"🎬 Starting recording: {request.session_name}")
+
+    try:
+        # Call MCP start_recording tool
+        response = await http_client.post(
+            f"{MCP_SERVER_URL}/tools/start_recording",
+            json={
+                "parameters": {
+                    "session_name": request.session_name,
+                    "description": request.description,
+                    "capture_screenshots": request.capture_screenshots,
+                    "device_id": request.device_id
+                }
+            }
+        )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"MCP server error: {response.text}"
+            )
+
+        result = response.json()
+
+        # MCP REST adapter returns {success, data, error} format
+        # Check for top-level error first
+        if result.get("error"):
+            print(f"❌ Recording start failed: {result['error']}")
+            raise HTTPException(
+                status_code=400,
+                detail=result["error"]
+            )
+
+        # Extract the actual data
+        data = result.get("data", {})
+
+        # Check if data contains an error field (tool-level error)
+        if isinstance(data, dict) and "error" in data:
+            print(f"❌ Recording start failed: {data['error']}")
+            raise HTTPException(
+                status_code=400,
+                detail=data["error"]
+            )
+
+        print(f"✅ Recording started: {data.get('recording_id', request.session_name)}")
+        return data
+
+    except HTTPException:
+        raise
+    except httpx.RequestError as e:
+        print(f"❌ MCP server connection error: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Cannot connect to MCP server: {str(e)}"
+        )
+    except Exception as e:
+        print(f"❌ Unexpected error starting recording: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start recording: {str(e)}"
+        )
+
+
+@app.post("/api/recording/stop")
+async def stop_recording():
+    """Stop active recording and save scenario"""
+    print("⏹️  Stopping recording...")
+
+    try:
+        # Call MCP stop_recording tool
+        response = await http_client.post(
+            f"{MCP_SERVER_URL}/tools/stop_recording",
+            json={"parameters": {}}
+        )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"MCP server error: {response.text}"
+            )
+
+        result = response.json()
+
+        # MCP REST adapter returns {success, data, error} format
+        # Check for top-level error first
+        if result.get("error"):
+            print(f"❌ Recording stop failed: {result['error']}")
+            raise HTTPException(
+                status_code=400,
+                detail=result["error"]
+            )
+
+        # Extract the actual data
+        data = result.get("data", {})
+
+        # Check if data contains an error field (tool-level error)
+        if isinstance(data, dict) and "error" in data:
+            print(f"❌ Recording stop failed: {data['error']}")
+            raise HTTPException(
+                status_code=400,
+                detail=data["error"]
+            )
+
+        print(f"✅ Recording stopped: {data.get('scenario_file', 'unknown')}")
+        print(f"📊 Actions recorded: {data.get('action_count', 0)}")
+        print(f"⏱️  Duration: {data.get('duration_ms', 0)}ms")
+
+        return data
+
+    except HTTPException:
+        raise
+    except httpx.RequestError as e:
+        print(f"❌ MCP server connection error: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Cannot connect to MCP server: {str(e)}"
+        )
+    except Exception as e:
+        print(f"❌ Unexpected error stopping recording: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to stop recording: {str(e)}"
+        )
+
+
+@app.get("/api/recording/status")
+async def get_recording_status():
+    """Get current recording status"""
+    try:
+        # Call MCP get_recording_status tool
+        response = await http_client.post(
+            f"{MCP_SERVER_URL}/tools/get_recording_status",
+            json={"parameters": {}}
+        )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"MCP server error: {response.text}"
+            )
+
+        result = response.json()
+
+        # MCP REST adapter returns {success, data, error} format
+        # Extract and return the data field
+        return result.get("data", {})
+
+    except httpx.RequestError as e:
+        print(f"❌ MCP server connection error: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Cannot connect to MCP server: {str(e)}"
+        )
+    except Exception as e:
+        print(f"❌ Unexpected error getting recording status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get recording status: {str(e)}"
         )
 
 

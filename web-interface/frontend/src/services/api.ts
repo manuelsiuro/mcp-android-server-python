@@ -112,6 +112,54 @@ class ApiClient {
       }
     );
   }
+
+  // Recording control endpoints
+  async startRecording(
+    sessionName: string,
+    options: {
+      description?: string;
+      capture_screenshots?: boolean;
+      device_id?: string;
+    } = {}
+  ): Promise<{
+    recording_id: string;
+    status: string;
+    start_time: string;
+    capture_screenshots: boolean;
+  }> {
+    return this.request('/api/recording/start', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_name: sessionName,
+        description: options.description,
+        capture_screenshots: options.capture_screenshots ?? true,
+        device_id: options.device_id
+      }),
+    });
+  }
+
+  async stopRecording(): Promise<{
+    scenario_file: string;
+    screenshot_folder?: string;
+    action_count: number;
+    duration_ms: number;
+    status: string;
+  }> {
+    return this.request('/api/recording/stop', {
+      method: 'POST',
+    });
+  }
+
+  async getRecordingStatus(): Promise<{
+    active: boolean;
+    session_name?: string;
+    action_count?: number;
+    duration_ms?: number;
+    capture_screenshots?: boolean;
+    message?: string;
+  }> {
+    return this.request('/api/recording/status');
+  }
 }
 
 export const apiClient = new ApiClient();
