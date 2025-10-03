@@ -173,13 +173,27 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
     }
   }, [recordingState.status, recordingState.startTime]);
 
-  // Existing click handler
+  // Click handler with proper coordinate calculation
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!imageRef.current) return;
 
+    // Get the image's bounding rectangle
     const rect = imageRef.current.getBoundingClientRect();
+
+    // Get the parent container's bounding rectangle for marker positioning
+    const parentRect = imageRef.current.parentElement?.getBoundingClientRect();
+    if (!parentRect) return;
+
+    // Calculate relative click position within the image
+    // e.clientX/Y are viewport coordinates, rect.left/top is image position
     const x = Math.round(e.clientX - rect.left);
     const y = Math.round(e.clientY - rect.top);
+
+    // Validate click is within image bounds
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      console.warn('Click outside image bounds', { x, y, width: rect.width, height: rect.height });
+      return;
+    }
 
     // Scale coordinates to actual device resolution
     const scaleX = imageRef.current.naturalWidth / rect.width;
@@ -187,10 +201,16 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
     const actualX = Math.round(x * scaleX);
     const actualY = Math.round(y * scaleY);
 
-    // Show click marker
-    setClickMarker({ x, y, timestamp: Date.now() });
+    // Calculate marker position relative to parent container
+    // This accounts for the image being centered in its parent with flexbox
+    const markerX = Math.round(rect.left - parentRect.left + x);
+    const markerY = Math.round(rect.top - parentRect.top + y);
+
+    // Show click marker at the correct position relative to parent
+    setClickMarker({ x: markerX, y: markerY, timestamp: Date.now() });
     setTimeout(() => setClickMarker(null), 1000);
 
+    // Send coordinates to parent
     onClickCoordinates?.(actualX, actualY);
   };
 
