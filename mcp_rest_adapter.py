@@ -55,11 +55,69 @@ def _build_tool_mapping() -> Dict[str, str]:
     with open(server_path, 'r') as f:
         content = f.read()
 
-    # Find all @mcp.tool(name="...") followed by def function_name
-    pattern = r'@mcp\.tool\(name="([^"]+)"[^\)]*\)\s*\n\s*def\s+([a-z_]+)\s*\('
-    matches = re.findall(pattern, content)
+    # Two-step parsing approach to handle all edge cases:
+    # 1. Find decorator start positions
+    # 2. Parse each decorator carefully to extract name and function
 
-    return dict(matches)
+    mapping = {}
+
+    # Find all @mcp.tool decorator positions
+    decorator_pattern = r'@mcp\.tool\('
+
+    for match in re.finditer(decorator_pattern, content):
+        start_pos = match.start()
+
+        # Find the closing parenthesis of the decorator
+        # We need to count parentheses properly, ignoring those in strings
+        pos = match.end()
+        paren_count = 1
+        in_string = False
+        string_char = None
+
+        while pos < len(content) and paren_count > 0:
+            char = content[pos]
+
+            # Handle string boundaries
+            if char in ('"', "'") and (pos == 0 or content[pos-1] != '\\'):
+                if not in_string:
+                    in_string = True
+                    string_char = char
+                elif char == string_char:
+                    in_string = False
+                    string_char = None
+
+            # Count parentheses only outside strings
+            elif not in_string:
+                if char == '(':
+                    paren_count += 1
+                elif char == ')':
+                    paren_count -= 1
+
+            pos += 1
+
+        if paren_count != 0:
+            continue  # Malformed decorator, skip
+
+        # Extract the decorator content
+        decorator_content = content[match.start():pos]
+
+        # Extract tool name from decorator using a simple regex on the cleaned content
+        name_match = re.search(r'name\s*=\s*"([^"]+)"', decorator_content)
+        if not name_match:
+            continue
+
+        tool_name = name_match.group(1)
+
+        # Find the function definition after the decorator
+        # Look for "def function_name(" or "async def function_name("
+        func_pattern = r'\s*(?:async\s+)?def\s+([a-z_]+)\s*\('
+        func_match = re.search(func_pattern, content[pos:pos+200])
+
+        if func_match:
+            func_name = func_match.group(1)
+            mapping[tool_name] = func_name
+
+    return mapping
 
 
 async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,4 +1,4 @@
-import type { Device, ActionRecord, ScreenshotResponse } from '../types';
+import type { Device, ActionRecord, ScreenshotResponse, ScenarioInfo, ReplayOptions, ReplayResult } from '../types';
 
 const API_BASE = '';
 
@@ -86,6 +86,31 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ tool, params }),
     });
+  }
+
+  // Scenario management endpoints
+  async getScenarios(): Promise<ScenarioInfo[]> {
+    const response = await this.request<{ scenarios: ScenarioInfo[]; count: number }>('/api/scenarios');
+    return response.scenarios;
+  }
+
+  async replayScenario(
+    scenarioName: string,
+    options: ReplayOptions = {}
+  ): Promise<ReplayResult> {
+    return this.request<ReplayResult>(`/api/scenarios/${encodeURIComponent(scenarioName)}/replay`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  }
+
+  async deleteScenario(scenarioName: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(
+      `/api/scenarios/${encodeURIComponent(scenarioName)}`,
+      {
+        method: 'DELETE',
+      }
+    );
   }
 }
 

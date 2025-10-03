@@ -533,7 +533,7 @@ async def call_mcp_tool(request: MCPToolRequest):
         # Forward request to MCP server
         response = await http_client.post(
             f"{MCP_SERVER_URL}/tools/{request.tool_name}",
-            json=request.parameters
+            json={"parameters": request.parameters}
         )
 
         # Calculate execution time
@@ -852,7 +852,13 @@ async def get_ui_hierarchy(device_id: Optional[str] = None):
     try:
         response = await http_client.post(
             f"{MCP_SERVER_URL}/tools/dump_hierarchy",
-            json={"device_id": device_id, "pretty": True, "max_depth": 15}
+            json={
+                "parameters": {
+                    "device_id": device_id,
+                    "pretty": True,
+                    "max_depth": 15
+                }
+            }
         )
         return response.json()
     except Exception as e:
@@ -892,6 +898,183 @@ async def clear_action_history():
     """Clear action history"""
     action_history.clear()
     return {"success": True, "message": "Action history cleared"}
+
+
+# ================== Scenario Management ==================
+
+# Scenarios directory (same as used by recording engine)
+SCENARIOS_DIR = PROJECT_ROOT / "scenarios"
+SCENARIOS_DIR.mkdir(exist_ok=True)
+
+
+class ReplayOptions(BaseModel):
+    """Options for replaying a scenario"""
+    speed_multiplier: float = 1.0
+    retry_attempts: int = 3
+    capture_screenshots: bool = False
+    stop_on_error: bool = False
+    device_id: Optional[str] = None
+
+
+@app.get("/api/scenarios")
+async def list_scenarios():
+    """List all available recorded scenarios"""
+    try:
+        scenarios = []
+
+        # Iterate through scenario directories
+        for scenario_dir in SCENARIOS_DIR.iterdir():
+            if not scenario_dir.is_dir():
+                continue
+
+            scenario_file = scenario_dir / "scenario.json"
+            if not scenario_file.exists():
+                continue
+
+            try:
+                # Read scenario metadata
+                with open(scenario_file, 'r') as f:
+                    scenario_data = json.load(f)
+
+                metadata = scenario_data.get("metadata", {})
+                actions = scenario_data.get("actions", [])
+
+                # Count screenshots
+                screenshots_dir = scenario_dir / "screenshots"
+                screenshot_count = 0
+                if screenshots_dir.exists():
+                    screenshot_count = len(list(screenshots_dir.glob("*.png")))
+
+                scenarios.append({
+                    "name": metadata.get("name", scenario_dir.name),
+                    "description": metadata.get("description", "No description"),
+                    "created_at": metadata.get("created_at"),
+                    "duration_ms": metadata.get("duration_ms", 0),
+                    "action_count": len(actions),
+                    "screenshot_count": screenshot_count,
+                    "device": metadata.get("device", {}),
+                    "file_path": str(scenario_file)
+                })
+            except Exception as e:
+                print(f"⚠️  Error reading scenario {scenario_dir.name}: {e}")
+                continue
+
+        # Sort by creation date (newest first)
+        scenarios.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+        return {
+            "scenarios": scenarios,
+            "count": len(scenarios)
+        }
+
+    except Exception as e:
+        print(f"❌ Error listing scenarios: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list scenarios: {str(e)}"
+        )
+
+
+@app.post("/api/scenarios/{scenario_name}/replay")
+async def replay_scenario_endpoint(
+    scenario_name: str,
+    options: ReplayOptions
+):
+    """Replay a recorded scenario"""
+    try:
+        # Find scenario file
+        scenario_file = SCENARIOS_DIR / scenario_name / "scenario.json"
+
+        if not scenario_file.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Scenario '{scenario_name}' not found"
+            )
+
+        print(f"🎬 Replaying scenario: {scenario_name}")
+        print(f"   Options: speed={options.speed_multiplier}x, retry={options.retry_attempts}, screenshots={options.capture_screenshots}")
+
+        # Call the MCP replay_scenario tool via the server
+        # Note: This requires the MCP server to be running
+        response = await http_client.post(
+            f"{MCP_SERVER_URL}/tools/replay_scenario",
+            json={
+                "parameters": {
+                    "scenario_file": str(scenario_file),
+                    "device_id": options.device_id,
+                    "speed_multiplier": options.speed_multiplier,
+                    "retry_attempts": options.retry_attempts,
+                    "capture_screenshots": options.capture_screenshots,
+                    "stop_on_error": options.stop_on_error
+                }
+            },
+            timeout=300.0  # 5 minute timeout for replay
+        )
+
+        if response.status_code != 200:
+            error_msg = response.text
+            print(f"❌ Replay failed: {error_msg}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Replay failed: {error_msg}"
+            )
+
+        result = response.json()
+        print(f"✅ Replay completed: {result.get('summary', {}).get('success_rate', 0)}% success rate")
+
+        return result
+
+    except HTTPException:
+        raise
+    except httpx.RequestError as e:
+        print(f"❌ MCP server connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Cannot connect to MCP server: {str(e)}"
+        )
+    except Exception as e:
+        print(f"❌ Replay error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Replay failed: {str(e)}"
+        )
+
+
+@app.delete("/api/scenarios/{scenario_name}")
+async def delete_scenario(scenario_name: str):
+    """Delete a recorded scenario"""
+    try:
+        scenario_dir = SCENARIOS_DIR / scenario_name
+
+        if not scenario_dir.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Scenario '{scenario_name}' not found"
+            )
+
+        # Delete the scenario directory and all its contents
+        import shutil
+        shutil.rmtree(scenario_dir)
+
+        print(f"🗑️  Deleted scenario: {scenario_name}")
+
+        return {
+            "success": True,
+            "message": f"Scenario '{scenario_name}' deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Delete error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete scenario: {str(e)}"
+        )
 
 
 # ================== Lifecycle ==================

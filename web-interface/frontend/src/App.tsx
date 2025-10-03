@@ -3,6 +3,7 @@ import { DeviceSelector } from './components/DeviceSelector';
 import { DeviceViewer } from './components/DeviceViewer';
 import { ClaudeChat } from './components/ClaudeChat';
 import { ActionHistory } from './components/ActionHistory';
+import { ScenarioList } from './components/ScenarioList';
 
 function App() {
   const [selectedDevice, setSelectedDevice] = useState<string | undefined>();
@@ -10,6 +11,7 @@ function App() {
     null
   );
   const [showActionHistory, setShowActionHistory] = useState(false);
+  const [showScenarios, setShowScenarios] = useState(false);
 
   const handleClickCoordinates = (x: number, y: number) => {
     setClickedCoordinates({ x, y });
@@ -39,6 +41,12 @@ function App() {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowScenarios(!showScenarios)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors"
+              >
+                {showScenarios ? 'Hide Scenarios' : 'Show Scenarios'}
+              </button>
               <button
                 onClick={() => setShowActionHistory(!showActionHistory)}
                 className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
@@ -74,13 +82,25 @@ function App() {
 
           {/* Right Panel - Claude Chat (60%) */}
           <div className="w-[60%] h-full flex flex-col gap-4">
-            <div className={showActionHistory ? 'h-[65%]' : 'h-full'}>
+            {/* Determine height based on what panels are shown */}
+            <div className={
+              showScenarios && showActionHistory ? 'h-[40%]' :
+              showScenarios || showActionHistory ? 'h-[65%]' :
+              'h-full'
+            }>
               <ClaudeChat deviceId={selectedDevice} />
             </div>
 
+            {/* Scenarios (Collapsible) */}
+            {showScenarios && (
+              <div className={showActionHistory ? 'h-[30%]' : 'h-[35%]'}>
+                <ScenarioList />
+              </div>
+            )}
+
             {/* Action History (Collapsible) */}
             {showActionHistory && (
-              <div className="h-[35%]">
+              <div className={showScenarios ? 'h-[30%]' : 'h-[35%]'}>
                 <ActionHistory />
               </div>
             )}
