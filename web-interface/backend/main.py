@@ -12,6 +12,9 @@ import httpx
 import asyncio
 import json
 import os
+import time
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 # Check if claude CLI is available
@@ -210,7 +213,6 @@ async def _execute_claude_query(prompt: str, device_id: Optional[str], websocket
     3. Comprehensive error handling and diagnostics
     4. Records MCP tool uses to action history
     """
-    import uuid
     process = None
     message_count = 0
     active_tool_uses = {}  # Track tool uses by ID to match with results
@@ -268,47 +270,67 @@ async def _execute_claude_query(prompt: str, device_id: Optional[str], websocket
 
                 # Extract and record tool uses for action history
                 if isinstance(message_data, dict):
+                    msg_type = message_data.get("type")
+
+                    # Debug: Log all message types we receive
+                    if msg_type:
+                        print(f"🔍 DEBUG: Received message type: {msg_type}")
+
                     # Check if this is a tool use message
-                    if message_data.get("type") == "tool_use":
+                    if msg_type == "tool_use":
                         tool_use_id = message_data.get("id")
                         tool_name = message_data.get("name", "")
                         tool_input = message_data.get("input", {})
 
-                        # Store tool use for later matching with result
-                        active_tool_uses[tool_use_id] = {
-                            "id": str(uuid.uuid4()),
-                            "timestamp": datetime.now().isoformat(),
-                            "type": "claude_tool_use",
-                            "tool": tool_name,
-                            "params": tool_input,
-                            "tool_use_id": tool_use_id
-                        }
-                        print(f"🔧 Detected tool use: {tool_name} (ID: {tool_use_id})")
+                        try:
+                            # Store tool use for later matching with result
+                            active_tool_uses[tool_use_id] = {
+                                "id": str(uuid.uuid4()),
+                                "timestamp": datetime.now().isoformat(),
+                                "type": "claude_tool_use",
+                                "tool": tool_name,
+                                "params": tool_input,
+                                "tool_use_id": tool_use_id
+                            }
+                            print(f"🔧 Detected tool use: {tool_name} (ID: {tool_use_id})")
+                        except Exception as e:
+                            print(f"❌ Error recording tool use: {e}")
+                            import traceback
+                            traceback.print_exc()
 
                     # Check if this is a tool result message
-                    elif message_data.get("type") == "tool_result":
+                    elif msg_type == "tool_result":
                         tool_use_id = message_data.get("tool_use_id")
                         is_error = message_data.get("is_error", False)
                         content = message_data.get("content", [])
 
-                        # Find matching tool use
-                        if tool_use_id in active_tool_uses:
-                            action_record = active_tool_uses[tool_use_id]
-                            action_record["result"] = {
-                                "success": not is_error,
-                                "data": content,
-                                "is_error": is_error
-                            }
+                        try:
+                            # Find matching tool use
+                            if tool_use_id in active_tool_uses:
+                                action_record = active_tool_uses[tool_use_id]
+                                action_record["result"] = {
+                                    "success": not is_error,
+                                    "data": content,
+                                    "is_error": is_error
+                                }
 
-                            # Add to action history
-                            action_history.append(action_record)
-                            if len(action_history) > 100:
-                                action_history.pop(0)
+                                # Add to action history
+                                action_history.append(action_record)
+                                if len(action_history) > 100:
+                                    action_history.pop(0)
 
-                            print(f"✅ Recorded action: {action_record['tool']} - {'Failed' if is_error else 'Success'}")
+                                print(f"✅ Recorded action: {action_record['tool']} - {'Failed' if is_error else 'Success'}")
+                                print(f"📊 Action history now contains {len(action_history)} actions")
 
-                            # Remove from active tracking
-                            del active_tool_uses[tool_use_id]
+                                # Remove from active tracking
+                                del active_tool_uses[tool_use_id]
+                            else:
+                                print(f"⚠️  Received tool_result for unknown tool_use_id: {tool_use_id}")
+                                print(f"   Active tool uses: {list(active_tool_uses.keys())}")
+                        except Exception as e:
+                            print(f"❌ Error recording tool result: {e}")
+                            import traceback
+                            traceback.print_exc()
 
                 # Forward to WebSocket
                 await websocket.send_json({
@@ -497,13 +519,13 @@ async def call_mcp_tool(request: MCPToolRequest):
     Proxy endpoint to call MCP Android tools directly
     This allows the frontend to invoke tools without going through Claude
     """
-    import time
-    import uuid
-
     # Generate action ID and timestamp
     action_id = str(uuid.uuid4())
     timestamp = datetime.now().isoformat()
     start_time = time.time()
+
+    print(f"🔧 MCP Tool Call: {request.tool_name}")
+    print(f"   Parameters: {request.parameters}")
 
     try:
         # Forward request to MCP server
@@ -518,29 +540,67 @@ async def call_mcp_tool(request: MCPToolRequest):
         if response.status_code == 200:
             result = response.json()
 
-            # Record successful action to history
-            action_record = {
-                "id": action_id,
-                "timestamp": timestamp,
-                "type": "mcp_tool",
-                "tool": request.tool_name,
-                "params": request.parameters,
-                "result": {
-                    "success": True,
-                    "data": result,
-                    "execution_time_ms": execution_time_ms
+            try:
+                # Record successful action to history
+                action_record = {
+                    "id": action_id,
+                    "timestamp": timestamp,
+                    "type": "mcp_tool",
+                    "tool": request.tool_name,
+                    "params": request.parameters,
+                    "result": {
+                        "success": True,
+                        "data": result,
+                        "execution_time_ms": execution_time_ms
+                    }
                 }
-            }
-            action_history.append(action_record)
+                action_history.append(action_record)
 
-            # Keep only last 100 actions
-            if len(action_history) > 100:
-                action_history.pop(0)
+                # Keep only last 100 actions
+                if len(action_history) > 100:
+                    action_history.pop(0)
+
+                print(f"✅ Recorded MCP tool action: {request.tool_name}")
+                print(f"📊 Action history now contains {len(action_history)} actions")
+            except Exception as e:
+                print(f"❌ Error recording action to history: {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue and return result even if recording failed
 
             return result
         else:
             # Record failed action to history
             error_detail = f"MCP tool call failed: {response.text}"
+            try:
+                action_record = {
+                    "id": action_id,
+                    "timestamp": timestamp,
+                    "type": "mcp_tool",
+                    "tool": request.tool_name,
+                    "params": request.parameters,
+                    "result": {
+                        "success": False,
+                        "error": error_detail,
+                        "execution_time_ms": execution_time_ms
+                    }
+                }
+                action_history.append(action_record)
+
+                if len(action_history) > 100:
+                    action_history.pop(0)
+
+                print(f"❌ Recorded failed MCP tool action: {request.tool_name}")
+            except Exception as record_error:
+                print(f"❌ Error recording failed action: {record_error}")
+
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=error_detail
+            )
+    except httpx.RequestError as e:
+        # Record connection error to history
+        try:
             action_record = {
                 "id": action_id,
                 "timestamp": timestamp,
@@ -549,8 +609,8 @@ async def call_mcp_tool(request: MCPToolRequest):
                 "params": request.parameters,
                 "result": {
                     "success": False,
-                    "error": error_detail,
-                    "execution_time_ms": execution_time_ms
+                    "error": f"Cannot connect to MCP server: {str(e)}",
+                    "execution_time_ms": 0
                 }
             }
             action_history.append(action_record)
@@ -558,28 +618,9 @@ async def call_mcp_tool(request: MCPToolRequest):
             if len(action_history) > 100:
                 action_history.pop(0)
 
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=error_detail
-            )
-    except httpx.RequestError as e:
-        # Record connection error to history
-        action_record = {
-            "id": action_id,
-            "timestamp": timestamp,
-            "type": "mcp_tool",
-            "tool": request.tool_name,
-            "params": request.parameters,
-            "result": {
-                "success": False,
-                "error": f"Cannot connect to MCP server: {str(e)}",
-                "execution_time_ms": 0
-            }
-        }
-        action_history.append(action_record)
-
-        if len(action_history) > 100:
-            action_history.pop(0)
+            print(f"❌ Recorded connection error for: {request.tool_name}")
+        except Exception as record_error:
+            print(f"❌ Error recording connection error: {record_error}")
 
         raise HTTPException(
             status_code=503,
