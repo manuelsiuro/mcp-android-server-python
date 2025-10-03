@@ -4,6 +4,7 @@ import { DeviceViewer } from './components/DeviceViewer';
 import { ClaudeChat } from './components/ClaudeChat';
 import { ActionHistory } from './components/ActionHistory';
 import { ScenarioList } from './components/ScenarioList';
+import { apiClient } from './services/api';
 
 function App() {
   const [selectedDevice, setSelectedDevice] = useState<string | undefined>();
@@ -12,11 +13,30 @@ function App() {
   );
   const [showActionHistory, setShowActionHistory] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
+  const [isExecutingClick, setIsExecutingClick] = useState(false);
 
-  const handleClickCoordinates = (x: number, y: number) => {
+  const handleClickCoordinates = async (x: number, y: number) => {
     setClickedCoordinates({ x, y });
-    console.log(`Device clicked at: (${x}, ${y})`);
-    // Could auto-populate Claude chat with click_at command
+    console.log(`Executing click at: (${x}, ${y})`);
+
+    setIsExecutingClick(true);
+    try {
+      const result = await apiClient.executeMcpTool('click_at', {
+        x,
+        y,
+        device_id: selectedDevice
+      });
+
+      if (result) {
+        console.log('Click executed successfully on device');
+      } else {
+        console.error('Click execution failed');
+      }
+    } catch (error) {
+      console.error('Click action error:', error);
+    } finally {
+      setIsExecutingClick(false);
+    }
   };
 
   return (
@@ -73,8 +93,13 @@ function App() {
                 onClickCoordinates={handleClickCoordinates}
               />
               {clickedCoordinates && (
-                <div className="px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100 text-sm font-medium text-blue-700">
-                  Last click: <span className="font-mono">({clickedCoordinates.x}, {clickedCoordinates.y})</span>
+                <div className="px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100 text-sm font-medium text-blue-700 flex items-center justify-between">
+                  <span>
+                    Last click: <span className="font-mono">({clickedCoordinates.x}, {clickedCoordinates.y})</span>
+                  </span>
+                  {isExecutingClick && (
+                    <span className="text-xs text-indigo-600 animate-pulse">Executing...</span>
+                  )}
                 </div>
               )}
             </div>

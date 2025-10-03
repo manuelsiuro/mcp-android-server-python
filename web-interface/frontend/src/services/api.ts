@@ -84,7 +84,7 @@ class ApiClient {
   ): Promise<any> {
     return this.request('/api/mcp/tool', {
       method: 'POST',
-      body: JSON.stringify({ tool, params }),
+      body: JSON.stringify({ tool_name: tool, parameters: params }),
     });
   }
 
