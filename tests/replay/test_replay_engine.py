@@ -75,7 +75,7 @@ class TestReplayEngineScenarioLoading:
         """Test loading scenario with missing fields raises ValueError."""
         engine = ReplayEngine()
 
-        with pytest.raises(ValueError, match="Invalid scenario: missing fields"):
+        with pytest.raises(ValueError, match="Invalid scenario format"):
             engine.load_scenario(tmp_missing_fields_file)
 
     def test_load_scenario_missing_session_name(self, tmp_path):
@@ -88,7 +88,7 @@ class TestReplayEngineScenarioLoading:
 
         engine = ReplayEngine()
 
-        with pytest.raises(ValueError, match="missing fields.*session_name"):
+        with pytest.raises(ValueError, match="Invalid scenario format"):
             engine.load_scenario(str(scenario_file))
 
     def test_load_scenario_missing_device_id(self, tmp_path):
@@ -101,7 +101,7 @@ class TestReplayEngineScenarioLoading:
 
         engine = ReplayEngine()
 
-        with pytest.raises(ValueError, match="missing fields.*device_id"):
+        with pytest.raises(ValueError, match="Invalid scenario format"):
             engine.load_scenario(str(scenario_file))
 
     def test_load_scenario_missing_actions(self, tmp_path):
@@ -114,7 +114,7 @@ class TestReplayEngineScenarioLoading:
 
         engine = ReplayEngine()
 
-        with pytest.raises(ValueError, match="missing fields.*actions"):
+        with pytest.raises(ValueError, match="missing 'actions' field"):
             engine.load_scenario(str(scenario_file))
 
     def test_load_scenario_actions_not_list(self, tmp_path):

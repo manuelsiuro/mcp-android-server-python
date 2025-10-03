@@ -42,11 +42,19 @@ class ReplayEngine:
         """
         Load and validate scenario JSON file.
 
+        Supports both schema formats:
+        - NEW: schema_version + metadata structure
+        - OLD: session_name + device_id at root level
+
         Args:
             scenario_path: Path to scenario JSON file
 
         Returns:
-            Scenario dictionary with metadata and actions
+            Scenario dictionary normalized to internal format with:
+                - session_name
+                - device_id
+                - actions
+                - metadata (optional, from new schema)
 
         Raises:
             ValueError: If scenario format is invalid
@@ -57,19 +65,79 @@ class ReplayEngine:
             raise FileNotFoundError(f"Scenario not found: {scenario_path}")
 
         with open(path, 'r') as f:
-            scenario = json.load(f)
+            raw_scenario = json.load(f)
 
-        # Validate required fields
-        required = ['session_name', 'device_id', 'actions']
-        missing = [f for f in required if f not in scenario]
-        if missing:
-            raise ValueError(f"Invalid scenario: missing fields {missing}")
+        # Detect schema version and normalize
+        if 'schema_version' in raw_scenario and 'metadata' in raw_scenario:
+            # NEW SCHEMA FORMAT (schema_version 1.0+)
+            scenario = self._normalize_new_schema(raw_scenario)
+        elif 'session_name' in raw_scenario and 'device_id' in raw_scenario:
+            # OLD SCHEMA FORMAT (legacy)
+            scenario = raw_scenario
+        else:
+            # Invalid format - neither old nor new schema
+            raise ValueError(
+                "Invalid scenario format: must contain either "
+                "(schema_version + metadata) or (session_name + device_id)"
+            )
 
-        # Validate actions array
+        # Validate actions array (common to both formats)
+        if 'actions' not in scenario:
+            raise ValueError("Invalid scenario: missing 'actions' field")
         if not isinstance(scenario['actions'], list):
             raise ValueError("Invalid scenario: 'actions' must be a list")
 
         return scenario
+
+    def _normalize_new_schema(self, raw_scenario: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize new schema format to internal representation.
+
+        Extracts session_name and device_id from metadata structure
+        and flattens to root level for backwards compatibility.
+
+        Args:
+            raw_scenario: Raw scenario dict with new schema
+
+        Returns:
+            Normalized scenario dict with old schema structure
+        """
+        metadata = raw_scenario.get('metadata', {})
+
+        # Extract required fields from metadata
+        session_name = metadata.get('name')
+        device_info = metadata.get('device', {})
+
+        # Try to get device_id from device metadata or actions
+        device_id = None
+        if device_info:
+            # Device info might have serial/id field
+            device_id = device_info.get('serial') or device_info.get('id')
+
+        # Fallback: extract device_id from first action params
+        if not device_id:
+            actions = raw_scenario.get('actions', [])
+            if actions and len(actions) > 0:
+                first_action = actions[0]
+                params = first_action.get('params', {})
+                device_id = params.get('device_id')
+
+        # Validate we got required fields
+        if not session_name:
+            raise ValueError(
+                "Invalid new schema: metadata.name is required"
+            )
+
+        # Build normalized scenario
+        normalized = {
+            'session_name': session_name,
+            'device_id': device_id or 'unknown',  # Default if not found
+            'actions': raw_scenario.get('actions', []),
+            'metadata': metadata,  # Preserve full metadata for reporting
+            'schema_version': raw_scenario.get('schema_version')
+        }
+
+        return normalized
 
     def replay(self, scenario_path: str) -> Dict[str, Any]:
         """
