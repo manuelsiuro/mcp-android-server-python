@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../services/api';
 import type { ScenarioInfo, ReplayResult } from '../types';
+import { ScreenshotDialog } from './ScreenshotDialog';
 
 export function ScenarioList() {
   const [scenarios, setScenarios] = useState<ScenarioInfo[]>([]);
@@ -10,6 +11,8 @@ export function ScenarioList() {
   const [replayingScenario, setReplayingScenario] = useState<string | null>(null);
   const [replayResult, setReplayResult] = useState<ReplayResult | null>(null);
   const [showReplayModal, setShowReplayModal] = useState(false);
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
+  const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
 
   const loadScenarios = async () => {
     try {
@@ -88,6 +91,16 @@ export function ScenarioList() {
   const closeReplayModal = () => {
     setShowReplayModal(false);
     setReplayResult(null);
+  };
+
+  const handleViewScreenshots = (scenario: ScenarioInfo) => {
+    setSelectedScenario(scenario.name);
+    setShowScreenshotDialog(true);
+  };
+
+  const closeScreenshotDialog = () => {
+    setShowScreenshotDialog(false);
+    setSelectedScenario(null);
   };
 
   return (
@@ -171,7 +184,7 @@ export function ScenarioList() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {scenarios.map((scenario) => (
               <div
                 key={scenario.name}
@@ -217,27 +230,40 @@ export function ScenarioList() {
                   </div>
                 </div>
 
-                {/* Replay Button */}
-                <button
-                  onClick={() => handleReplay(scenario)}
-                  disabled={replayingScenario === scenario.name}
-                  className="w-full px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                >
-                  {replayingScenario === scenario.name ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Replaying...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Replay Scenario</span>
-                    </>
-                  )}
-                </button>
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleViewScreenshots(scenario)}
+                    disabled={scenario.screenshot_count === 0}
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    title={scenario.screenshot_count === 0 ? 'No screenshots available' : 'View screenshots'}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Screenshots</span>
+                  </button>
+                  <button
+                    onClick={() => handleReplay(scenario)}
+                    disabled={replayingScenario === scenario.name}
+                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                  >
+                    {replayingScenario === scenario.name ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Replaying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Replay</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -363,6 +389,14 @@ export function ScenarioList() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Screenshot Dialog */}
+      {showScreenshotDialog && selectedScenario && (
+        <ScreenshotDialog
+          scenarioName={selectedScenario}
+          onClose={closeScreenshotDialog}
+        />
       )}
     </div>
   );

@@ -113,6 +113,19 @@ class ApiClient {
     );
   }
 
+  async getScenarioScreenshots(scenarioName: string): Promise<{
+    screenshots: Array<{ filename: string; url: string; size: number }>;
+    count: number;
+  }> {
+    return this.request<{ screenshots: Array<{ filename: string; url: string; size: number }>; count: number }>(
+      `/api/scenarios/${encodeURIComponent(scenarioName)}/screenshots`
+    );
+  }
+
+  getScenarioScreenshotUrl(scenarioName: string, filename: string): string {
+    return `${this.baseUrl}/api/scenarios/${encodeURIComponent(scenarioName)}/screenshots/${filename}`;
+  }
+
   // Recording control endpoints
   async startRecording(
     sessionName: string,

@@ -1084,6 +1084,67 @@ async def delete_scenario(scenario_name: str):
         )
 
 
+@app.get("/api/scenarios/{scenario_name}/screenshots")
+async def list_scenario_screenshots(scenario_name: str):
+    """List all screenshots for a scenario"""
+    try:
+        screenshots_dir = SCENARIOS_DIR / scenario_name / "screenshots"
+
+        if not screenshots_dir.exists():
+            return {
+                "screenshots": [],
+                "count": 0
+            }
+
+        screenshots = []
+        for screenshot_file in sorted(screenshots_dir.glob("*.png")):
+            screenshots.append({
+                "filename": screenshot_file.name,
+                "url": f"/api/scenarios/{scenario_name}/screenshots/{screenshot_file.name}",
+                "size": screenshot_file.stat().st_size
+            })
+
+        return {
+            "screenshots": screenshots,
+            "count": len(screenshots)
+        }
+
+    except Exception as e:
+        print(f"❌ Error listing screenshots: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list screenshots: {str(e)}"
+        )
+
+
+@app.get("/api/scenarios/{scenario_name}/screenshots/{filename}")
+async def get_scenario_screenshot(scenario_name: str, filename: str):
+    """Serve a specific screenshot from a scenario"""
+    try:
+        screenshot_path = SCENARIOS_DIR / scenario_name / "screenshots" / filename
+
+        if not screenshot_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Screenshot '{filename}' not found in scenario '{scenario_name}'"
+            )
+
+        return FileResponse(
+            screenshot_path,
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error serving screenshot: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to serve screenshot: {str(e)}"
+        )
+
+
 # ================== Recording Control Endpoints ==================
 
 @app.post("/api/recording/start")
