@@ -181,9 +181,12 @@ export function ScenarioList() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <h3 className="text-sm font-semibold text-slate-800 mb-1">
-                      {scenario.description}
+                      {scenario.description || scenario.name}
                     </h3>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 font-mono">
+                      {scenario.name}
+                    </p>
+                    <p className="text-xs text-slate-400">
                       {formatDate(scenario.created_at)}
                     </p>
                   </div>

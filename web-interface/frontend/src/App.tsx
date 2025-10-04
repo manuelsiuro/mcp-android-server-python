@@ -4,6 +4,7 @@ import { DeviceViewer } from './components/DeviceViewer';
 import { ClaudeChat } from './components/ClaudeChat';
 import { ActionHistory } from './components/ActionHistory';
 import { ScenarioList } from './components/ScenarioList';
+import { TabbedPanel, type Tab } from './components/TabbedPanel';
 import { apiClient } from './services/api';
 
 function App() {
@@ -11,8 +12,6 @@ function App() {
   const [clickedCoordinates, setClickedCoordinates] = useState<{ x: number; y: number } | null>(
     null
   );
-  const [showActionHistory, setShowActionHistory] = useState(false);
-  const [showScenarios, setShowScenarios] = useState(false);
   const [isExecutingClick, setIsExecutingClick] = useState(false);
 
   const handleClickCoordinates = async (x: number, y: number) => {
@@ -39,6 +38,41 @@ function App() {
     }
   };
 
+  // Define tabs for the right panel
+  const tabs: Tab[] = [
+    {
+      id: 'claude',
+      label: 'Claude Assistant',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+      ),
+      content: <ClaudeChat deviceId={selectedDevice} />,
+    },
+    {
+      id: 'scenarios',
+      label: 'Recorded Scenarios',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      content: <ScenarioList />,
+    },
+    {
+      id: 'history',
+      label: 'Action History',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      content: <ActionHistory />,
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Header */}
@@ -61,18 +95,6 @@ function App() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => setShowScenarios(!showScenarios)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors"
-              >
-                {showScenarios ? 'Hide Scenarios' : 'Show Scenarios'}
-              </button>
-              <button
-                onClick={() => setShowActionHistory(!showActionHistory)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-              >
-                {showActionHistory ? 'Hide History' : 'Show History'}
-              </button>
               <DeviceSelector
                 selectedDevice={selectedDevice}
                 onDeviceChange={setSelectedDevice}
@@ -105,30 +127,9 @@ function App() {
             </div>
           </div>
 
-          {/* Right Panel - Claude Chat (60%) */}
-          <div className="w-[60%] h-full flex flex-col gap-4">
-            {/* Determine height based on what panels are shown */}
-            <div className={
-              showScenarios && showActionHistory ? 'h-[40%]' :
-              showScenarios || showActionHistory ? 'h-[65%]' :
-              'h-full'
-            }>
-              <ClaudeChat deviceId={selectedDevice} />
-            </div>
-
-            {/* Scenarios (Collapsible) */}
-            {showScenarios && (
-              <div className={showActionHistory ? 'h-[30%]' : 'h-[35%]'}>
-                <ScenarioList />
-              </div>
-            )}
-
-            {/* Action History (Collapsible) */}
-            {showActionHistory && (
-              <div className={showScenarios ? 'h-[30%]' : 'h-[35%]'}>
-                <ActionHistory />
-              </div>
-            )}
+          {/* Right Panel - Tabbed Interface (60%) */}
+          <div className="w-[60%] h-full">
+            <TabbedPanel tabs={tabs} defaultTabId="claude" />
           </div>
         </div>
       </main>
