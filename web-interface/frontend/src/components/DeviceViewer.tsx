@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '../services/api';
-import type { ClickEvent } from '../types';
 
 interface DeviceViewerProps {
   deviceId: string | undefined;
@@ -24,7 +23,6 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [clickMarker, setClickMarker] = useState<ClickEvent | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const refreshIntervalRef = useRef<number | undefined>(undefined);
 
@@ -211,15 +209,6 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
     const actualX = Math.round(x * scaleX);
     const actualY = Math.round(y * scaleY);
 
-    // Calculate marker position relative to parent container
-    // This accounts for the image being centered in its parent with flexbox
-    const markerX = Math.round(rect.left - parentRect.left + x);
-    const markerY = Math.round(rect.top - parentRect.top + y);
-
-    // Show click marker at the correct position relative to parent
-    setClickMarker({ x: markerX, y: markerY, timestamp: Date.now() });
-    setTimeout(() => setClickMarker(null), 1000);
-
     // Send coordinates to parent
     onClickCoordinates?.(actualX, actualY);
   };
@@ -332,16 +321,25 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
             )}
 
             {recordingState.status === 'recording' && (
-              <button
-                disabled
-                className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-md cursor-not-allowed shadow-sm font-medium text-sm flex items-center gap-1.5 relative"
-              >
+              <div className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-md shadow-sm font-medium text-sm flex items-center gap-3">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
                 </span>
-                <span>Recording</span>
-              </button>
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="font-mono text-xs font-semibold">{formatDuration(recordingDuration)}</span>
+                </div>
+                <div className="w-px h-4 bg-white/30"></div>
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                  </svg>
+                  <span className="font-mono text-xs font-semibold">{recordingState.actionCount}</span>
+                </div>
+              </div>
             )}
 
             {(recordingState.status === 'recording' || recordingState.status === 'stopping') && (
@@ -418,59 +416,6 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
         )}
       </div>
 
-      {/* Recording Status Banner - Clean Professional Design */}
-      {recordingState.status === 'recording' && (
-        <div className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white border-b border-red-600">
-          <div className="flex items-center justify-center gap-6">
-            {/* Pulsing indicator */}
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-            </span>
-
-            {/* Duration */}
-            <div className="flex items-center gap-2">
-              <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Duration</span>
-              <span className="font-mono font-bold text-lg">
-                {formatDuration(recordingDuration)}
-              </span>
-            </div>
-
-            <div className="w-px h-6 bg-red-400/50"></div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Actions</span>
-              <span className="font-mono font-bold text-lg">
-                {recordingState.actionCount}
-              </span>
-            </div>
-
-            <div className="w-px h-6 bg-red-400/50"></div>
-
-            {/* Screenshots */}
-            <div className="flex items-center gap-2">
-              <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Screenshots</span>
-              <span className="font-mono font-bold text-lg">
-                {recordingState.screenshotCount}
-              </span>
-            </div>
-
-            {/* Last Action - Only show if exists */}
-            {recordingState.lastAction && (
-              <>
-                <div className="w-px h-6 bg-red-400/50"></div>
-                <div className="flex items-center gap-2 max-w-md">
-                  <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Last</span>
-                  <span className="font-mono text-sm truncate">
-                    {recordingState.lastAction}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Error Banner */}
       {recordingState.status === 'error' && recordingState.error && (
@@ -508,18 +453,6 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
               className="max-w-full max-h-full object-contain shadow-2xl rounded-lg cursor-crosshair border-4 border-white/50"
               style={{ maxHeight: 'calc(100vh - 200px)' }}
             />
-            {clickMarker && (
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  left: clickMarker.x,
-                  top: clickMarker.y,
-                }}
-              >
-                <div className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full animate-ping opacity-75" />
-                <div className="absolute w-3 h-3 -translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full" />
-              </div>
-            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-3 text-slate-500">
