@@ -13,6 +13,8 @@ interface RecordingState {
   sessionName: string | null;
   startTime: number | null;
   actionCount: number;
+  screenshotCount: number;
+  lastAction: string | null;
   error: string | null;
 }
 
@@ -32,6 +34,8 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
     sessionName: null,
     startTime: null,
     actionCount: 0,
+    screenshotCount: 0,
+    lastAction: null,
     error: null
   });
   const [showSessionModal, setShowSessionModal] = useState(false);
@@ -66,6 +70,8 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
         sessionName: result.recording_id,
         startTime: Date.now(),
         actionCount: 0,
+        screenshotCount: 0,
+        lastAction: null,
         error: null
       });
 
@@ -90,6 +96,8 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
         sessionName: null,
         startTime: null,
         actionCount: 0,
+        screenshotCount: 0,
+        lastAction: null,
         error: null
       });
     } catch (error) {
@@ -140,7 +148,7 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
     }
   }, [autoRefresh, deviceId]);
 
-  // Poll recording status to update action count
+  // Poll recording status to update action count, screenshot count, and last action
   useEffect(() => {
     if (recordingState.status === 'recording') {
       const pollInterval = setInterval(async () => {
@@ -149,7 +157,9 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
           if (status.active && status.action_count !== undefined) {
             setRecordingState(prev => ({
               ...prev,
-              actionCount: status.action_count!
+              actionCount: status.action_count!,
+              screenshotCount: status.screenshot_count || 0,
+              lastAction: status.last_action || null
             }));
           }
         } catch (err) {
@@ -304,100 +314,103 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
 
   return (
     <div className={`flex flex-col h-full ${isRecording ? 'border-4 border-red-500' : 'border border-slate-200'} rounded-lg transition-all`}>
-      {/* Controls */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          {/* Recording Controls */}
-          {recordingState.status === 'idle' && (
-            <button
-              onClick={() => setShowSessionModal(true)}
-              className="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="8" />
-              </svg>
-              <span>Record</span>
-            </button>
-          )}
-
-          {recordingState.status === 'recording' && (
-            <button
-              disabled
-              className="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-lg cursor-not-allowed shadow-sm font-medium text-sm flex items-center gap-2 relative"
-            >
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-              </span>
-              <span>Recording...</span>
-            </button>
-          )}
-
-          {(recordingState.status === 'recording' || recordingState.status === 'stopping') && (
-            <button
-              onClick={handleStopRecording}
-              disabled={recordingState.status === 'stopping'}
-              className="px-4 py-2 bg-white hover:bg-red-50 border-2 border-red-500 text-red-600 hover:text-red-700 disabled:bg-slate-50 disabled:border-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed rounded-lg transition-all font-medium text-sm flex items-center gap-2"
-            >
-              {recordingState.status === 'stopping' ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Stopping...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <rect x="6" y="6" width="12" height="12" rx="1" />
-                  </svg>
-                  <span>Stop</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Existing Capture Button */}
-          <button
-            onClick={captureScreenshot}
-            disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 disabled:from-blue-400 disabled:to-indigo-500 disabled:cursor-not-allowed transition-all shadow-sm font-medium text-sm flex items-center gap-2 relative overflow-hidden"
-          >
-            {loading ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
+      {/* Controls - Redesigned with Grouped Layout */}
+      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+        <div className="flex items-center gap-2">
+          {/* Recording Group */}
+          <div className="flex items-center gap-2 pr-3 border-r border-slate-300">
+            {recordingState.status === 'idle' && (
+              <button
+                onClick={() => setShowSessionModal(true)}
+                className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-md transition-all shadow-sm font-medium text-sm flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="8" />
+                </svg>
+                <span>Record</span>
+              </button>
             )}
-            <span className="transition-opacity duration-200">Capture</span>
-          </button>
 
-          {/* Existing Auto-refresh Toggle */}
-          <label className="flex items-center gap-2 cursor-pointer select-none group">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
-            />
-            <span className="text-sm text-slate-700 group-hover:text-slate-900">Auto-refresh (2s)</span>
-          </label>
+            {recordingState.status === 'recording' && (
+              <button
+                disabled
+                className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-md cursor-not-allowed shadow-sm font-medium text-sm flex items-center gap-1.5 relative"
+              >
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                </span>
+                <span>Recording</span>
+              </button>
+            )}
+
+            {(recordingState.status === 'recording' || recordingState.status === 'stopping') && (
+              <button
+                onClick={handleStopRecording}
+                disabled={recordingState.status === 'stopping'}
+                className="px-3 py-1.5 bg-white hover:bg-red-50 border-2 border-red-500 text-red-600 hover:text-red-700 disabled:bg-slate-50 disabled:border-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed rounded-md transition-all font-medium text-sm flex items-center gap-1.5"
+              >
+                {recordingState.status === 'stopping' ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Stopping</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <rect x="6" y="6" width="12" height="12" rx="1" />
+                    </svg>
+                    <span>Stop</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* View Controls Group */}
+          <div className="flex items-center gap-2 pr-3 border-r border-slate-300">
+            <button
+              onClick={captureScreenshot}
+              disabled={loading}
+              className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-md hover:from-blue-600 hover:to-indigo-700 disabled:from-blue-400 disabled:to-indigo-500 disabled:cursor-not-allowed transition-all shadow-sm font-medium text-sm flex items-center gap-1.5 relative overflow-hidden"
+            >
+              {loading ? (
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+              <span className="transition-opacity duration-200">Capture</span>
+            </button>
+
+            <label className="flex items-center gap-1.5 cursor-pointer select-none group">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+              />
+              <span className="text-xs text-slate-700 group-hover:text-slate-900 font-medium">Auto-refresh (2s)</span>
+            </label>
+          </div>
         </div>
 
-        {/* Existing Download Button */}
+        {/* Download Button */}
         {screenshotUrl && (
           <a
             href={screenshotUrl}
             download
-            className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors flex items-center gap-2"
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-md text-xs font-medium text-slate-700 hover:text-slate-900 transition-colors flex items-center gap-1.5"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             Download
@@ -405,56 +418,57 @@ export function DeviceViewer({ deviceId, onClickCoordinates }: DeviceViewerProps
         )}
       </div>
 
-      {/* Recording Status Banner */}
+      {/* Recording Status Banner - Clean Professional Design */}
       {recordingState.status === 'recording' && (
-        <div className="px-4 py-2.5 bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-t border-b border-red-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white border-b border-red-600">
+          <div className="flex items-center justify-center gap-6">
             {/* Pulsing indicator */}
             <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
             </span>
 
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-slate-700">Duration:</span>
-                <span className="font-mono font-semibold text-red-600">
-                  {formatDuration(recordingDuration)}
-                </span>
-              </div>
-
-              <div className="w-px h-4 bg-red-200"></div>
-
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-slate-700">Actions:</span>
-                <span className="font-mono font-semibold text-red-600">
-                  {recordingState.actionCount}
-                </span>
-              </div>
-
-              {recordingState.sessionName && (
-                <>
-                  <div className="w-px h-4 bg-red-200"></div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-slate-700">Session:</span>
-                    <span className="font-mono text-slate-600">
-                      {recordingState.sessionName}
-                    </span>
-                  </div>
-                </>
-              )}
+            {/* Duration */}
+            <div className="flex items-center gap-2">
+              <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Duration</span>
+              <span className="font-mono font-bold text-lg">
+                {formatDuration(recordingDuration)}
+              </span>
             </div>
-          </div>
 
-          <button
-            onClick={handleStopRecording}
-            className="px-3 py-1.5 bg-white hover:bg-red-50 border border-red-300 text-red-600 hover:text-red-700 rounded-md transition-all font-medium text-xs flex items-center gap-1.5 shadow-sm"
-          >
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-              <rect x="6" y="6" width="12" height="12" rx="1" />
-            </svg>
-            <span>Stop Recording</span>
-          </button>
+            <div className="w-px h-6 bg-red-400/50"></div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Actions</span>
+              <span className="font-mono font-bold text-lg">
+                {recordingState.actionCount}
+              </span>
+            </div>
+
+            <div className="w-px h-6 bg-red-400/50"></div>
+
+            {/* Screenshots */}
+            <div className="flex items-center gap-2">
+              <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Screenshots</span>
+              <span className="font-mono font-bold text-lg">
+                {recordingState.screenshotCount}
+              </span>
+            </div>
+
+            {/* Last Action - Only show if exists */}
+            {recordingState.lastAction && (
+              <>
+                <div className="w-px h-6 bg-red-400/50"></div>
+                <div className="flex items-center gap-2 max-w-md">
+                  <span className="text-red-100 text-xs font-medium uppercase tracking-wide">Last</span>
+                  <span className="font-mono text-sm truncate">
+                    {recordingState.lastAction}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

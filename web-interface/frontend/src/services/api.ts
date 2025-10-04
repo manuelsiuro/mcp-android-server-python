@@ -167,6 +167,8 @@ class ApiClient {
     active: boolean;
     session_name?: string;
     action_count?: number;
+    screenshot_count?: number;
+    last_action?: string;
     duration_ms?: number;
     capture_screenshots?: boolean;
     message?: string;

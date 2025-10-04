@@ -260,7 +260,10 @@ def get_recording_status() -> Dict[str, Any]:
     """Get the current recording status and statistics.
 
     Returns:
-        Status information about current recording session
+        Status information about current recording session including:
+        - action_count: Number of recorded actions
+        - screenshot_count: Number of captured screenshots
+        - last_action: String representation of the most recent action
     """
     global _recording_state
 
@@ -272,10 +275,48 @@ def get_recording_status() -> Dict[str, Any]:
 
     duration_ms = int((datetime.now() - _recording_state["start_time"]).total_seconds() * 1000)
 
+    # Count screenshots in the screenshots directory
+    screenshot_count = 0
+    if _recording_state["screenshots_dir"]:
+        screenshots_path = Path(_recording_state["screenshots_dir"])
+        if screenshots_path.exists():
+            screenshot_count = len(list(screenshots_path.glob("*.png")))
+
+    # Get the last action as a formatted string
+    last_action = None
+    if _recording_state["actions"]:
+        last_action_data = _recording_state["actions"][-1]
+        # Format: "tool_name(param1, param2, ...)"
+        tool_name = last_action_data.get("tool", "unknown")
+        params = last_action_data.get("parameters", {})
+
+        # Create a readable representation
+        if tool_name == "click_at":
+            x = params.get("x", "?")
+            y = params.get("y", "?")
+            last_action = f"click_at({x}, {y})"
+        elif tool_name in ["click", "click_xpath"]:
+            selector = params.get("selector") or params.get("xpath", "?")
+            last_action = f"{tool_name}('{selector}')"
+        elif tool_name == "send_text":
+            text = params.get("text", "")
+            text_preview = text[:20] + "..." if len(text) > 20 else text
+            last_action = f"send_text('{text_preview}')"
+        elif tool_name == "swipe":
+            last_action = f"swipe({params.get('start_x')},{params.get('start_y')} → {params.get('end_x')},{params.get('end_y')})"
+        else:
+            # Generic format for other tools
+            param_str = ", ".join(f"{k}={v}" for k, v in list(params.items())[:2])
+            if len(params) > 2:
+                param_str += ", ..."
+            last_action = f"{tool_name}({param_str})"
+
     return {
         "active": True,
         "session_name": _recording_state["session_name"],
         "action_count": len(_recording_state["actions"]),
+        "screenshot_count": screenshot_count,
+        "last_action": last_action,
         "duration_ms": duration_ms,
         "capture_screenshots": _recording_state["screenshots_dir"] is not None
     }
